@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Happy Holiday - Event Spaces & Management</title>
+  
+  <!-- Modern Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Embedded Design System CSS -->
+  <link rel="stylesheet" href="./src/styles/index.css" />
+
+  <!-- React 18, ReactDOM, and Babel Standalone for direct execution without build friction -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    // --- Inline Crisp SVG Icons ---
+    const CalendarIcon = ({ size = 16, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="18" height="18" x="3" y="4" rx="3" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
+    );
+
+    const UsersIcon = ({ size = 16, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    );
+
+    const SearchIcon = ({ size = 16, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+    );
+
+    const SwitchIcon = ({ size = 14, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" />
+      </svg>
+    );
+
+    const CloseIcon = ({ size = 16, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    );
+
+    const CheckIcon = ({ size = 16, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+    );
+
+    const SendIcon = ({ size = 15, color = "currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m22 2-7 20-4-9-9-4Z" />
+        <path d="M22 2 11 13" />
+      </svg>
+    );
+
+    // --- Mock Data ---
+    const initialEventsData = [
+      {
+        id: 'HH-90218',
+        title: 'Corporate End-of-Year Gala',
+        date: 'Dec 12, 2025 (18:00 PM - 23:00 PM)',
+        guests: 150,
+        venue: 'The Crystal Greenhouse',
+        status: 'pending',
+        statusLabel: 'Pending',
+        feeNotice: '* Cancellation fee applies after Dec 05, 2025'
+      },
+      {
+        id: 'HH-492318',
+        title: 'Alex & Sarah Wedding Reception',
+        date: 'Oct 14, 2025 (10:00 AM - 16:00 PM)',
+        guests: 120,
+        venue: 'Grand Ballroom Atrium',
+        status: 'confirmed',
+        statusLabel: 'Confirmed',
+        feeNotice: '* Cancellation fee applies after Oct 07, 2025',
+        isNext: true
+      },
+      {
+        id: 'HH-312948',
+        title: 'Creative Tech Summit 2025',
+        date: 'Aug 22, 2025 (09:00 AM - 17:00 PM)',
+        guests: 90,
+        venue: 'The Warehouse Atrium',
+        status: 'completed',
+        statusLabel: 'Completed',
+        feeNotice: null
+      }
+    ];
+
+    const initialClientsData = [
+      { id: 1, name: 'Sarah Jenkins', email: 'sarah.j@outlook.com', phone: '+1 (555) 234-5678', totalBookings: 4, lastBooking: 'Oct 14, 2025', company: 'Jenkins Design Studio' },
+      { id: 2, name: 'Michael Chang', email: 'm.chang@corporatecorp.com', phone: '+1 (555) 876-5432', totalBookings: 3, lastBooking: 'Dec 01, 2025', company: 'CorporateCorp Global' },
+      { id: 3, name: 'Emily Rose', email: 'emily.rose@agency.co', phone: '+1 (555) 345-6789', totalBookings: 2, lastBooking: 'Nov 18, 2025', company: 'Rose Creative Agency' },
+      { id: 4, name: 'David Miller', email: 'david@millerholding.com', phone: '+1 (555) 456-7890', totalBookings: 1, lastBooking: 'Nov 02, 2025', company: 'Miller Holding LLC' },
+      { id: 5, name: 'Sophia Loren', email: 'sophia@classiccinema.it', phone: '+1 (555) 567-8901', totalBookings: 2, lastBooking: 'Dec 10, 2025', company: 'Classic Cinema Club' },
+      { id: 6, name: 'James Thompson', email: 'j.thompson@builders.io', phone: '+1 (555) 678-9012', totalBookings: 5, lastBooking: 'Sep 28, 2025', company: 'Thompson Group' }
+    ];
+
+    const initialOrdersData = [
+      { id: 'ORD-5541', client: 'David Miller', venue: 'The Crystal Greenhouse', eventDate: 'Nov 02, 2025', status: 'awaiting-payment', statusLabel: 'Awaiting Payment' },
+      { id: 'ORD-5542', client: 'Sarah Jenkins', venue: 'Metropolitan Symphony Hall', eventDate: 'Nov 15, 2025', status: 'confirmed', statusLabel: 'Confirmed' },
+      { id: 'ORD-5543', client: 'Emily Rose', venue: 'The Warehouse Atrium', eventDate: 'Nov 18, 2025', status: 'change-requested', statusLabel: 'Change Requested' },
+      { id: 'ORD-5544', client: 'Michael Chang', venue: 'Whispering Pines Lodge', eventDate: 'Dec 01, 2025', status: 'completed', statusLabel: 'Completed' },
+      { id: 'ORD-5545', client: 'Sophia Loren', venue: 'Horizon Skyline Terrace', eventDate: 'Dec 10, 2025', status: 'confirmed', statusLabel: 'Confirmed' }
+    ];
+
+    const initialVenuesData = [
+      { id: 'v1', name: 'Grand Ballroom Atrium', tag: 'Luxury Banquet', capacity: '120 - 250 Guests', price: '$2,400', desc: 'Opulent hall with double-height ceiling, warm ambient chandeliers and crystal finishes.', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=800&auto=format&fit=crop' },
+      { id: 'v2', name: 'The Crystal Greenhouse', tag: 'Botanical Glasshouse', capacity: '80 - 160 Guests', price: '$1,800', desc: 'Lush enclosed botanical garden under vintage glass arches with warm string illumination.', image: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?q=80&w=800&auto=format&fit=crop' },
+      { id: 'v3', name: 'The Warehouse Atrium', tag: 'Industrial Chic', capacity: '90 - 220 Guests', price: '$1,500', desc: 'Polished concrete floors, exposed red brick accents, and flexible modular stage architecture.', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=800&auto=format&fit=crop' },
+      { id: 'v4', name: 'Whispering Pines Lodge', tag: 'Rustic Alpine', capacity: '50 - 120 Guests', price: '$1,950', desc: 'Warm timber lodge with a grand stone fireplace and panoramic alpine terraces.', image: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?q=80&w=800&auto=format&fit=crop' },
+      { id: 'v5', name: 'Horizon Skyline Terrace', tag: 'Rooftop Panoramic', capacity: '70 - 150 Guests', price: '$2,200', desc: 'High-altitude sky lounge offering an unobstructed illuminated metropolitan backdrop.', image: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=800&auto=format&fit=crop' }
+    ];
+
+    // --- Header Component ---
+    function Header({ currentRole, setRole, activeTab, setActiveTab }) {
+      const isManager = currentRole === 'manager';
+
+      const clientLinks = [
+        { id: 'home', label: 'Home' },
+        { id: 'spaces', label: 'Browse Spaces' },
+        { id: 'events', label: 'My Events' }
+      ];
+
+      const managerLinks = [
+        { id: 'orders', label: 'Orders' },
+        { id: 'clients', label: 'Clients' },
+        { id: 'schedule', label: 'Schedule' },
+        { id: 'analytics', label: 'Analytics' }
+      ];
+
+      const links = isManager ? managerLinks : clientLinks;
+
+      const toggleRole = () => {
+        if (isManager) {
+          setRole('client');
+          setActiveTab('home');
+        } else {
+          setRole('manager');
+          setActiveTab('orders');
+        }
+      };
+
+      return (
+        <header className="site-header">
+          <div className="header-container">
+            <div className="brand-wrapper" onClick={() => setActiveTab(isManager ? 'orders' : 'home')}>
+              <div className="brand-icon">
+                <CalendarIcon size={18} color="#ffffff" />
+              </div>
+              <span className="brand-text">Happy Holiday</span>
+            </div>
+
+            <nav className="nav-links">
+              {links.map((link) => (
+                <button
+                  key={link.id}
+                  className={`nav-item ${activeTab === link.id ? 'active' : ''}`}
+                  onClick={() => setActiveTab(link.id)}
+                >
+                  {link.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="header-right">
+              <button className="role-switcher-btn" onClick={toggleRole}>
+                <SwitchIcon size={13} />
+                <span>{isManager ? 'Switch to Client View' : 'Switch to Manager View'}</span>
+              </button>
+
+              <div className="user-profile">
+                <div className="user-avatar">{isManager ? 'M' : 'A'}</div>
+                <span className="user-name">{isManager ? 'Manager Portal' : 'Alex Wong'}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // --- Client Home Page (Figma Screen 4) ---
+    function HomeView({ onNavigate, nextEvent }) {
+      return (
+        <div>
+          <div className="page-header">
+            <h1 className="page-title">Welcome back, Alex</h1>
+            <p className="page-subtitle">Find, book, and manage beautiful event spaces for any occasion.</p>
+          </div>
+
+          <div className="quick-actions-grid">
+            <div className="quick-action-card">
+              <div className="quick-action-left">
+                <div className="action-icon-bubble">
+                  <SearchIcon size={22} color="#2563eb" />
+                </div>
+                <div className="action-info">
+                  <h3>Browse Spaces</h3>
+                  <p>Explore wedding halls, corporate halls, and banquet spaces.</p>
+                </div>
+              </div>
+              <button className="btn-outline-primary" onClick={() => onNavigate('spaces')}>
+                Explore
+              </button>
+            </div>
+
+            <div className="quick-action-card">
+              <div className="quick-action-left">
+                <div className="action-icon-bubble">
+                  <CalendarIcon size={22} color="#2563eb" />
+                </div>
+                <div className="action-info">
+                  <h3>My Events</h3>
+                  <p>View and manage your current bookings and service checklists.</p>
+                </div>
+              </div>
+              <button className="btn-outline-primary" onClick={() => onNavigate('events')}>
+                View Bookings
+              </button>
+            </div>
+          </div>
+
+          <div className="next-event-section">
+            <div className="section-label">Your Next Event</div>
+            <div className="next-event-card">
+              <div className="event-card-left">
+                <img 
+                  src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=600&auto=format&fit=crop" 
+                  alt="Grand Ballroom Atrium" 
+                  className="event-venue-thumb" 
+                />
+                <div className="event-venue-details">
+                  <h3 className="event-venue-title">Grand Ballroom Atrium</h3>
+                  <div className="event-meta-row">
+                    <div className="event-meta-item">
+                      <CalendarIcon size={15} />
+                      <span>Oct 14, 2025 (10:00 AM - 16:00 PM)</span>
+                    </div>
+                    <div className="event-meta-item">
+                      <UsersIcon size={15} />
+                      <span>120 Guests</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="event-card-right">
+                <span className="status-badge confirmed">Booking Confirmed</span>
+                <span className="ref-code">Ref: HH-492318</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- My Events View (Figma Screen 1) ---
+    function MyEventsView({ events, onOpenModify, onOpenCancel }) {
+      return (
+        <div>
+          <div className="page-header">
+            <h1 className="page-title">My Events</h1>
+            <p className="page-subtitle">Track, modify, or cancel your current space bookings.</p>
+          </div>
+
+          <div className="events-list">
+            {events.map((event) => (
+              <div key={event.id} className="event-item-card">
+                <div className="event-item-main">
+                  <div className="event-item-header">
+                    <span className={`status-badge ${event.status}`}>
+                      {event.statusLabel}
+                    </span>
+                    <span className="ref-code">Ref: {event.id}</span>
+                  </div>
+
+                  <h2 className="event-item-title">{event.title}</h2>
+
+                  <div className="event-meta-row">
+                    <div className="event-meta-item">
+                      <CalendarIcon size={15} />
+                      <span>{event.date}</span>
+                    </div>
+                    <div className="event-meta-item">
+                      <UsersIcon size={15} />
+                      <span>{event.guests} Guests at {event.venue}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="event-item-actions">
+                  <div className="action-buttons-group">
+                    <button 
+                      className="btn-outline-primary"
+                      onClick={() => onOpenModify(event)}
+                    >
+                      Modify Booking
+                    </button>
+                    <button 
+                      className="btn-outline-neutral"
+                      onClick={() => onOpenCancel(event)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+
+                  {event.feeNotice && (
+                    <div className="fee-notice">
+                      {event.feeNotice}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // --- Order Queue View (Figma Screen 3) ---
+    function OrderQueueView({ orders, onOpenDetails, onOpenStatusModal }) {
+      const [statusFilter, setStatusFilter] = useState('all');
+      const [sortBy, setSortBy] = useState('date');
+
+      const filteredOrders = useMemo(() => {
+        let res = [...orders];
+        if (statusFilter !== 'all') {
+          res = res.filter(o => o.status === statusFilter);
+        }
+        if (sortBy === 'date') {
+          res.sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate));
+        } else if (sortBy === 'id') {
+          res.sort((a, b) => a.id.localeCompare(b.id));
+        }
+        return res;
+      }, [orders, statusFilter, sortBy]);
+
+      return (
+        <div>
+          <div className="table-header-controls">
+            <div className="page-header" style={{ marginBottom: 0 }}>
+              <h1 className="page-title">Order Queue</h1>
+              <p className="page-subtitle">Manage and process inbound reservations and booking adjustments.</p>
+            </div>
+
+            <div className="filter-selects-group">
+              <select 
+                className="select-filter" 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">Status: All Orders</option>
+                <option value="awaiting-payment">Awaiting Payment</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="change-requested">Change Requested</option>
+                <option value="completed">Completed</option>
+              </select>
+
+              <select 
+                className="select-filter" 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="date">Sort by: Event Date</option>
+                <option value="id">Sort by: Order ID</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="table-card">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Client</th>
+                  <th>Venue</th>
+                  <th>Event Date</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right', paddingRight: '28px' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="order-id-cell">{order.id}</td>
+                    <td className="client-name-cell">{order.client}</td>
+                    <td>{order.venue}</td>
+                    <td>{order.eventDate}</td>
+                    <td>
+                      <span className={`status-badge ${order.status}`}>
+                        {order.statusLabel}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="table-actions-cell">
+                        <button 
+                          className="btn-table-action btn-table-view"
+                          onClick={() => onOpenDetails(order)}
+                        >
+                          View Details
+                        </button>
+                        <button 
+                          className="btn-table-action btn-table-update"
+                          onClick={() => onOpenStatusModal(order)}
+                        >
+                          Update Status
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // --- My Clients View (Figma Screen 2) ---
+    function MyClientsView({ clients, onOpenProfile }) {
+      const [searchQuery, setSearchQuery] = useState('');
+
+      const filteredClients = useMemo(() => {
+        if (!searchQuery.trim()) return clients;
+        const q = searchQuery.toLowerCase();
+        return clients.filter(c => 
+          c.name.toLowerCase().includes(q) || 
+          c.email.toLowerCase().includes(q) || 
+          c.phone.includes(q)
+        );
+      }, [clients, searchQuery]);
+
+      return (
+        <div>
+          <div className="table-header-controls">
+            <div className="page-header" style={{ marginBottom: 0 }}>
+              <h1 className="page-title">My Clients</h1>
+              <p className="page-subtitle">Maintain relationships, review booking histories, and access client documentation.</p>
+            </div>
+
+            <div className="search-input-wrapper">
+              <span className="search-icon-inside">
+                <SearchIcon size={15} color="#94a3b8" />
+              </span>
+              <input 
+                type="text" 
+                placeholder="Search clients..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="table-card">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>Client Name</th>
+                  <th>Email Address</th>
+                  <th>Phone Number</th>
+                  <th>Total Bookings</th>
+                  <th>Last Booking</th>
+                  <th style={{ textAlign: 'right', paddingRight: '28px' }}>Profile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredClients.map((client) => (
+                  <tr key={client.id}>
+                    <td className="client-name-cell">{client.name}</td>
+                    <td>{client.email}</td>
+                    <td>{client.phone}</td>
+                    <td>{client.totalBookings}</td>
+                    <td>{client.lastBooking}</td>
+                    <td>
+                      <div className="table-actions-cell">
+                        <button 
+                          className="btn-table-action btn-table-view"
+                          onClick={() => onOpenProfile(client)}
+                        >
+                          View Profile
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // --- Venue Schedule & Invoicing (Figma Screen 5) ---
+    function VenueScheduleView({ showToast }) {
+      const [clientName, setClientName] = useState('Sarah Jenkins');
+      const [bookingRef, setBookingRef] = useState('HH-492318');
+      const [amount, setAmount] = useState('$1,800.00');
+      const [dueDate, setDueDate] = useState('Oct 24, 2025');
+
+      const [previewInvoice, setPreviewInvoice] = useState({
+        invNumber: '#INV-2025-082',
+        title: 'The Crystal Greenhouse Booking',
+        subtitle: '12 hours space rental · Sarah Jenkins',
+        total: '$1,800.00'
+      });
+
+      const handleGenerate = (e) => {
+        e.preventDefault();
+        const code = `#INV-2025-${Math.floor(100 + Math.random() * 900)}`;
+        setPreviewInvoice({
+          invNumber: code,
+          title: bookingRef === 'HH-492318' ? 'Grand Ballroom Atrium Booking' : 'The Crystal Greenhouse Booking',
+          subtitle: `12 hours space rental · ${clientName}`,
+          total: amount.startsWith('$') ? amount : `$${amount}`
+        });
+        showToast(`Generated invoice ${code} for ${clientName}!`);
+      };
+
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+      const rows = [
+        {
+          venue: 'Crystal Greenhouse',
+          bar: { title: 'Corporate End-of-Year Gala', type: 'corporate', left: '20.5%', width: '38.5%' }
+        },
+        {
+          venue: 'Warehouse Atrium',
+          bar: { title: 'Creative Tech Summit', type: 'social', left: '0.8%', width: '38.5%' }
+        },
+        {
+          venue: 'Metropolitan Hall',
+          bar: { title: 'Symphony Orchestra Prep', type: 'prep', left: '40.5%', width: '19%' }
+        },
+        {
+          venue: 'Skyline Terrace',
+          bar: null
+        }
+      ];
+
+      return (
+        <div>
+          <div className="page-header">
+            <h1 className="page-title">Venue Schedule</h1>
+            <p className="page-subtitle">Coordinate weekly hall occupancy and issue verified client invoices.</p>
+          </div>
+
+          <div className="schedule-invoice-layout">
+            {/* Timeline */}
+            <div className="timeline-card">
+              <div className="timeline-top-bar">
+                <span className="timeline-title">Weekly Timeline (Oct 12 - Oct 18)</span>
+                <div className="timeline-legend">
+                  <div className="legend-item">
+                    <span className="legend-square corporate"></span>
+                    <span>Corporate</span>
+                  </div>
+                  <div className="legend-item">
+                    <span className="legend-square social"></span>
+                    <span>Social</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="timeline-grid">
+                <div></div>
+                {days.map(d => <div key={d} className="timeline-header-cell">{d}</div>)}
+
+                {rows.map((r, i) => (
+                  <React.Fragment key={r.venue}>
+                    <div className="venue-row-name">{r.venue}</div>
+                    <div className="timeline-row-tracks">
+                      {days.map((_, idx) => (
+                        <div 
+                          key={idx} 
+                          className="timeline-slot-divider"
+                          style={{ borderRight: idx === 4 ? 'none' : '1px dashed #e2e8f0' }}
+                        />
+                      ))}
+                      {r.bar && (
+                        <div 
+                          className={`timeline-event-bar ${r.bar.type}`}
+                          style={{ left: r.bar.left, width: r.bar.width }}
+                        >
+                          {r.bar.title}
+                        </div>
+                      )}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+
+            {/* Invoicing */}
+            <div className="invoice-column">
+              <div className="invoice-gen-card">
+                <h2 className="invoice-card-title">Invoice Generator</h2>
+                <form onSubmit={handleGenerate}>
+                  <div className="form-group">
+                    <label>Client Name</label>
+                    <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Booking Reference</label>
+                    <input type="text" value={bookingRef} onChange={(e) => setBookingRef(e.target.value)} required />
+                  </div>
+                  <div className="form-row-2">
+                    <div className="form-group">
+                      <label>Amount (USD)</label>
+                      <input type="text" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Due Date</label>
+                      <input type="text" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn-full-primary">Generate Invoice</button>
+                </form>
+              </div>
+
+              <div className="invoice-preview-card">
+                <div className="preview-top-row">
+                  <span className="preview-badge">INVOICE PREVIEW</span>
+                  <span className="preview-inv-number">{previewInvoice.invNumber}</span>
+                </div>
+                <h3 className="preview-heading">{previewInvoice.title}</h3>
+                <p className="preview-subtext">{previewInvoice.subtitle}</p>
+
+                <div className="preview-total-row">
+                  <span className="preview-total-label">Total Due:</span>
+                  <span className="preview-total-val">{previewInvoice.total}</span>
+                </div>
+
+                <button 
+                  className="btn-full-primary" 
+                  onClick={() => showToast(`Invoice ${previewInvoice.invNumber} sent to client!`)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <SendIcon size={14} color="#ffffff" />
+                  <span>Send to Client</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- Browse Spaces View ---
+    function BrowseSpacesView({ venues, onBookSpace }) {
+      return (
+        <div>
+          <div className="page-header">
+            <h1 className="page-title">Browse Spaces</h1>
+            <p className="page-subtitle">Discover and reserve premium architectural venues for your upcoming milestones.</p>
+          </div>
+
+          <div className="spaces-grid">
+            {venues.map((venue) => (
+              <div key={venue.id} className="space-card">
+                <div className="space-image-container">
+                  <img src={venue.image} alt={venue.name} className="space-image" />
+                  <span className="space-tag">{venue.tag}</span>
+                </div>
+                <div className="space-body">
+                  <div>
+                    <h3 className="space-title">{venue.name}</h3>
+                    <p className="space-desc">{venue.desc}</p>
+                    <div className="event-meta-row" style={{ marginBottom: '14px' }}>
+                      <div className="event-meta-item">
+                        <UsersIcon size={14} />
+                        <span>{venue.capacity}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-footer">
+                    <div className="space-price">
+                      {venue.price} <span>/ event</span>
+                    </div>
+                    <button className="btn-solid-primary" onClick={() => onBookSpace(venue)}>
+                      Book Space
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // --- Reusable Modal ---
+    function ModalDialog({ isOpen, onClose, title, children, footer }) {
+      if (!isOpen) return null;
+      return (
+        <div className="modal-overlay" onClick={onClose}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{title}</h3>
+              <button className="modal-close-btn" onClick={onClose}>
+                <CloseIcon size={16} />
+              </button>
+            </div>
+            <div className="modal-body">{children}</div>
+            {footer && <div className="modal-footer">{footer}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    // --- Main App Root ---
+    function App() {
+      const [currentRole, setRole] = useState('client');
+      const [activeTab, setActiveTab] = useState('home');
+
+      const [events, setEvents] = useState(initialEventsData);
+      const [orders, setOrders] = useState(initialOrdersData);
+      const [clients] = useState(initialClientsData);
+      const [venues] = useState(initialVenuesData);
+
+      // Toast alerts
+      const [toasts, setToasts] = useState([]);
+      const showToast = (message) => {
+        const id = Date.now();
+        setToasts((prev) => [...prev, { id, message }]);
+        setTimeout(() => setToasts((prev) => prev.filter(t => t.id !== id)), 3500);
+      };
+
+      // Modals
+      const [selectedEvent, setSelectedEvent] = useState(null);
+      const [isModifyOpen, setIsModifyOpen] = useState(false);
+      const [isCancelOpen, setIsCancelOpen] = useState(false);
+      const [editDate, setEditDate] = useState('');
+      const [editGuests, setEditGuests] = useState(100);
+
+      const [selectedOrder, setSelectedOrder] = useState(null);
+      const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+      const [isOrderStatusOpen, setIsOrderStatusOpen] = useState(false);
+      const [newStatus, setNewStatus] = useState('confirmed');
+
+      const [selectedClient, setSelectedClient] = useState(null);
+      const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+      // Event actions
+      const handleOpenModify = (evt) => {
+        setSelectedEvent(evt);
+        setEditDate(evt.date);
+        setEditGuests(evt.guests);
+        setIsModifyOpen(true);
+      };
+
+      const handleSaveModify = (e) => {
+        e.preventDefault();
+        setEvents(prev => prev.map(ev => ev.id === selectedEvent.id ? { ...ev, date: editDate, guests: editGuests } : ev));
+        setIsModifyOpen(false);
+        showToast(`Booking ${selectedEvent.id} updated!`);
+      };
+
+      const handleConfirmCancel = () => {
+        setEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
+        setIsCancelOpen(false);
+        showToast(`Reservation ${selectedEvent.id} was canceled.`);
+      };
+
+      const handleBookVenue = (venue) => {
+        const newId = `HH-${Math.floor(100000 + Math.random() * 900000)}`;
+        const newEvt = {
+          id: newId,
+          title: `${venue.name} Gathering`,
+          date: 'Nov 20, 2025 (18:00 PM - 23:00 PM)',
+          guests: 120,
+          venue: venue.name,
+          status: 'pending',
+          statusLabel: 'Pending',
+          feeNotice: '* Cancellation fee applies 7 days before event'
+        };
+        setEvents(prev => [newEvt, ...prev]);
+        setActiveTab('events');
+        showToast(`Successfully booked ${venue.name} (${newId})!`);
+      };
+
+      return (
+        <div className="app-container">
+          <Header
+            currentRole={currentRole}
+            setRole={setRole}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+          />
+
+          <main className="main-wrapper">
+            {currentRole === 'client' && (
+              <>
+                {activeTab === 'home' && <HomeView onNavigate={(t) => setActiveTab(t)} />}
+                {activeTab === 'events' && (
+                  <MyEventsView 
+                    events={events} 
+                    onOpenModify={handleOpenModify} 
+                    onOpenCancel={(ev) => { setSelectedEvent(ev); setIsCancelOpen(true); }} 
+                  />
+                )}
+                {activeTab === 'spaces' && <BrowseSpacesView venues={venues} onBookSpace={handleBookVenue} />}
+              </>
+            )}
+
+            {currentRole === 'manager' && (
+              <>
+                {activeTab === 'orders' && (
+                  <OrderQueueView 
+                    orders={orders} 
+                    onOpenDetails={(o) => { setSelectedOrder(o); setIsOrderDetailsOpen(true); }}
+                    onOpenStatusModal={(o) => { setSelectedOrder(o); setNewStatus(o.status); setIsOrderStatusOpen(true); }}
+                  />
+                )}
+                {activeTab === 'clients' && (
+                  <MyClientsView 
+                    clients={clients} 
+                    onOpenProfile={(c) => { setSelectedClient(c); setIsProfileOpen(true); }} 
+                  />
+                )}
+                {activeTab === 'schedule' && <VenueScheduleView showToast={showToast} />}
+                {activeTab === 'analytics' && (
+                  <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '32px' }}>
+                    <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>Manager Analytics Overview</h2>
+                    <p style={{ color: '#64748b', marginBottom: '24px' }}>Real-time revenue metrics, space utilization rates, and client activity logs.</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                      <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ color: '#64748b', fontSize: '13px' }}>Gross Revenue (Q4)</div>
+                        <div style={{ fontSize: '26px', fontWeight: '800', color: '#0f172a', marginTop: '6px' }}>$48,250</div>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ color: '#64748b', fontSize: '13px' }}>Confirmed Bookings</div>
+                        <div style={{ fontSize: '26px', fontWeight: '800', color: '#16a34a', marginTop: '6px' }}>28 Events</div>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ color: '#64748b', fontSize: '13px' }}>Space Occupancy</div>
+                        <div style={{ fontSize: '26px', fontWeight: '800', color: '#2563eb', marginTop: '6px' }}>84.6%</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </main>
+
+          {/* Modify Modal */}
+          <ModalDialog
+            isOpen={isModifyOpen}
+            onClose={() => setIsModifyOpen(false)}
+            title={`Modify Booking - ${selectedEvent?.title}`}
+            footer={
+              <>
+                <button className="btn-outline-neutral" onClick={() => setIsModifyOpen(false)}>Close</button>
+                <button className="btn-solid-primary" onClick={handleSaveModify}>Save Changes</button>
+              </>
+            }
+          >
+            <form onSubmit={handleSaveModify}>
+              <div className="form-group">
+                <label>Venue & Reference</label>
+                <input type="text" value={`${selectedEvent?.venue} (${selectedEvent?.id})`} disabled style={{ background: '#f8fafc', color: '#64748b' }} />
+              </div>
+              <div className="form-group">
+                <label>Scheduled Date</label>
+                <input type="text" value={editDate} onChange={(e) => setEditDate(e.target.value)} required />
+              </div>
+              <div className="form-group">
+                <label>Expected Guests</label>
+                <input type="number" value={editGuests} onChange={(e) => setEditGuests(e.target.value)} min={1} required />
+              </div>
+            </form>
+          </ModalDialog>
+
+          {/* Cancel Modal */}
+          <ModalDialog
+            isOpen={isCancelOpen}
+            onClose={() => setIsCancelOpen(false)}
+            title="Cancel Booking"
+            footer={
+              <>
+                <button className="btn-outline-neutral" onClick={() => setIsCancelOpen(false)}>Keep Booking</button>
+                <button className="btn-solid-primary" style={{ background: '#dc2626', borderColor: '#dc2626' }} onClick={handleConfirmCancel}>Confirm Cancellation</button>
+              </>
+            }
+          >
+            <p style={{ fontSize: '14px', color: '#334155', marginBottom: '14px' }}>
+              Are you sure you want to cancel your reservation for <b>{selectedEvent?.title}</b>?
+            </p>
+            {selectedEvent?.feeNotice && (
+              <div style={{ background: '#fff7ed', border: '1px solid #ffedd5', padding: '12px 16px', borderRadius: '8px', color: '#c2410c', fontSize: '13px' }}>
+                {selectedEvent.feeNotice}
+              </div>
+            )}
+          </ModalDialog>
+
+          {/* Order Details Modal */}
+          <ModalDialog
+            isOpen={isOrderDetailsOpen}
+            onClose={() => setIsOrderDetailsOpen(false)}
+            title={`Reservation Details - ${selectedOrder?.id}`}
+            footer={<button className="btn-solid-primary" onClick={() => setIsOrderDetailsOpen(false)}>Close</button>}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ color: '#64748b' }}>Client:</span><strong>{selectedOrder?.client}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ color: '#64748b' }}>Venue:</span><strong>{selectedOrder?.venue}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ color: '#64748b' }}>Event Date:</span><strong>{selectedOrder?.eventDate}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Status:</span>
+                <span className={`status-badge ${selectedOrder?.status}`}>{selectedOrder?.statusLabel}</span>
+              </div>
+            </div>
+          </ModalDialog>
+
+          {/* Order Status Modal */}
+          <ModalDialog
+            isOpen={isOrderStatusOpen}
+            onClose={() => setIsOrderStatusOpen(false)}
+            title={`Update Status - ${selectedOrder?.id}`}
+            footer={
+              <>
+                <button className="btn-outline-neutral" onClick={() => setIsOrderStatusOpen(false)}>Cancel</button>
+                <button className="btn-solid-primary" onClick={() => {
+                  const map = { 'awaiting-payment': 'Awaiting Payment', 'confirmed': 'Confirmed', 'change-requested': 'Change Requested', 'completed': 'Completed' };
+                  setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, status: newStatus, statusLabel: map[newStatus] } : o));
+                  setIsOrderStatusOpen(false);
+                  showToast(`Updated ${selectedOrder.id} to ${map[newStatus]}!`);
+                }}>
+                  Apply Status
+                </button>
+              </>
+            }
+          >
+            <div className="form-group">
+              <label>Select New Status for {selectedOrder?.client}'s Reservation:</label>
+              <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <option value="awaiting-payment">Awaiting Payment</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="change-requested">Change Requested</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </ModalDialog>
+
+          {/* Client Profile Modal */}
+          <ModalDialog
+            isOpen={isProfileOpen}
+            onClose={() => setIsProfileOpen(false)}
+            title={`Client Profile - ${selectedClient?.name}`}
+            footer={<button className="btn-solid-primary" onClick={() => setIsProfileOpen(false)}>Close</button>}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#dbeafe', color: '#1d4ed8', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {selectedClient?.name.charAt(0)}
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '15px', fontWeight: '700' }}>{selectedClient?.name}</h4>
+                  <p style={{ color: '#64748b' }}>{selectedClient?.company}</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                  <div style={{ color: '#64748b', fontSize: '11px' }}>EMAIL</div>
+                  <div style={{ fontWeight: '600', marginTop: '2px' }}>{selectedClient?.email}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                  <div style={{ color: '#64748b', fontSize: '11px' }}>PHONE</div>
+                  <div style={{ fontWeight: '600', marginTop: '2px' }}>{selectedClient?.phone}</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                  <div style={{ color: '#64748b', fontSize: '11px' }}>TOTAL BOOKINGS</div>
+                  <div style={{ fontWeight: '700', color: '#2563eb', fontSize: '15px', marginTop: '2px' }}>{selectedClient?.totalBookings}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                  <div style={{ color: '#64748b', fontSize: '11px' }}>LAST RESERVATION</div>
+                  <div style={{ fontWeight: '600', marginTop: '2px' }}>{selectedClient?.lastBooking}</div>
+                </div>
+              </div>
+            </div>
+          </ModalDialog>
+
+          {/* Toast Notification Container */}
+          <div className="toast-container">
+            {toasts.map((t) => (
+              <div key={t.id} className="toast">
+                <CheckIcon size={18} color="#2563eb" />
+                <span>{t.message}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

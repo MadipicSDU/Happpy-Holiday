@@ -1,0 +1,13 @@
+{
+  "name": "happy-patient",
+  "version": "1.0.0",
+  "description": "Happy Holiday - Event Spaces & Management Frontend in React",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["react", "event-booking", "happy-holiday"],
+  "author": "",
+  "license": "ISC"
+}
