@@ -11,10 +11,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("HappyHoliday-Api-63b5e84f-8a07-4dd7-a8cc-a216640f88f4")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("HappyHoliday")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+641810a16a90416391cdcda4ee975dd81c37b8c1")]
 [assembly: System.Reflection.AssemblyProductAttribute("HappyHoliday")]
 [assembly: System.Reflection.AssemblyTitleAttribute("HappyHoliday")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

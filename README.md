@@ -1,35 +1,45 @@
-# Happpy-Holiday
+# Happy-Holiday
 
-Event spaces booking & management platform built with React, based on the Figma design.
+Event spaces booking & management platform.
+Contains both a React frontend and a .NET Core Backend API.
 
-## Features
+## Frontend Features
 
-- **Client Portal (Alex Wong)**:
-  - **Home**: Welcome dashboard, quick actions ("Browse Spaces", "My Events"), and "Your Next Event" preview card.
-  - **My Events**: View and manage bookings (`HH-90218`, `HH-492318`, `HH-312948`), status badges (Pending, Confirmed, Completed), modify dates/guests modal, cancel booking modal, and fee notices.
-  - **Browse Spaces**: Full catalog of event spaces with photos, guest capacity, pricing, and reservation modal.
+- **Client Portal (Alex Wong)**: Home, My Events, Browse Spaces
+- **Manager Portal**: Order Queue, My Clients, Venue Schedule & Invoicing, Analytics
+- **Role Switcher**: Toggle button in the header
 
-- **Manager Portal**:
-  - **Order Queue**: Inbound booking management (`ORD-5541` to `ORD-5545`) with filters by status and date, order details modal, and status update controls.
-  - **My Clients**: Client directory with real-time search, booking history, contact info, and client profile dossier.
-  - **Venue Schedule & Invoicing**: Weekly timeline (Monday–Friday) showing hall allocations across Corporate, Social, and Prep slots; interactive Invoice Generator and live Invoice Preview.
-  - **Analytics**: Key performance indicators including gross revenue, confirmed bookings count, and space occupancy rates.
-
-- **Role Switcher**:
-  - Convenient toggle button in the header to switch between Client View and Manager Portal.
-
-## How to Run
-
-### Option 1: Direct in Browser
-Open `index.html` directly in your browser:
-```bash
-open index.html
-```
-
-### Option 2: Local Server
+### How to Run Frontend
+Open `index.html` directly in your browser or run:
 ```bash
 python3 -m http.server 3000
-# or
-node server.js
 ```
 Then visit [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Backend API
+
+The API supports JWT bearer authentication and two roles: `client` and `manager`.
+
+### Run
+```powershell
+dotnet run --project HappyHoliday
+```
+
+In Development, the initial manager is seeded as:
+- Email: `manager@happyholiday.local`
+- Password: `Manager123!`
+
+Use the requests in `HappyHoliday/HappyHoliday.http` to register, log in, and call protected endpoints.
+
+### Endpoints
+| Method | Endpoint | Access |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Public; creates a client and returns a JWT |
+| POST | `/api/auth/login` | Public; returns a JWT |
+| POST | `/api/auth/managers` | Manager; creates another manager |
+| GET | `/api/users/me` | Authenticated client or manager |
+| GET | `/api/users/manager-area` | Manager only |
+
+Passwords are hashed with ASP.NET Core's password hasher and are never returned by the API. Users are persisted in PostgreSQL through Entity Framework Core.

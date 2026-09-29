@@ -1,6 +1,45 @@
 @HappyHoliday_HostAddress = http://localhost:5294
+@clientToken = paste-client-access-token-here
+@managerToken = paste-manager-access-token-here
 
-GET {{HappyHoliday_HostAddress}}/weatherforecast/
+### Register a client
+POST {{HappyHoliday_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "displayName": "Holiday Client",
+  "email": "client@example.com",
+  "password": "Client123!"
+}
+
+### Login (development manager: manager@happyholiday.local / Manager123!)
+POST {{HappyHoliday_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@happyholiday.local",
+  "password": "Manager123!"
+}
+
+### View the authenticated profile
+GET {{HappyHoliday_HostAddress}}/api/users/me
+Authorization: Bearer {{clientToken}}
 Accept: application/json
+
+### Manager-only endpoint
+GET {{HappyHoliday_HostAddress}}/api/users/manager-area
+Authorization: Bearer {{managerToken}}
+Accept: application/json
+
+### Managers can create another manager
+POST {{HappyHoliday_HostAddress}}/api/auth/managers
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "displayName": "Another Manager",
+  "email": "manager2@example.com",
+  "password": "Manager456!"
+}
 
 ###
