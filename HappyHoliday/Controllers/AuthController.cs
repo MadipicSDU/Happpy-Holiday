@@ -61,6 +61,32 @@ public sealed class AuthController(
         return StatusCode(StatusCodes.Status201Created, result.ToResponse());
     }
 
+    [HttpPost("staff")]
+    [Authorize(Roles = UserRoles.Admin)]
+    [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserResponse>> RegisterStaff(
+        CreateStaffRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await RegisterUserAsync(
+            new RegisterRequest { DisplayName = request.DisplayName, Email = request.Email, Password = request.Password, Phone = request.Phone },
+            request.Role,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Email already registered",
+                Detail = "An account with this email address already exists.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        return StatusCode(StatusCodes.Status201Created, result.ToResponse());
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
@@ -102,7 +128,8 @@ public sealed class AuthController(
             Email = email,
             NormalizedEmail = PostgresUserRepository.NormalizeEmail(email),
             PasswordHash = string.Empty,
-            Role = role
+            Role = role,
+            Phone = request.Phone?.Trim()
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 

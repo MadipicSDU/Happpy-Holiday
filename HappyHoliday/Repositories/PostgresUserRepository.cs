@@ -40,6 +40,9 @@ public sealed class PostgresUserRepository(AppDbContext database) : IUserReposit
     public async Task<AppUser?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         await database.Users.FindAsync([id], cancellationToken);
 
+    public async Task<List<AppUser>> GetByRoleAsync(string role, CancellationToken cancellationToken = default) =>
+        await database.Users.Where(u => u.Role == role).OrderBy(u => u.DisplayName).ToListAsync(cancellationToken);
+
     public async Task DeleteAsync(AppUser user, CancellationToken cancellationToken = default)
     {
         database.Users.Remove(user);

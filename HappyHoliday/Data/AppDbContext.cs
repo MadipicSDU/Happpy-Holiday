@@ -8,6 +8,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Premise> Premises => Set<Premise>();
     public DbSet<EventService> EventServices => Set<EventService>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderService> OrderServices => Set<OrderService>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,6 +22,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         user.Property(item => item.NormalizedEmail).HasMaxLength(254).IsRequired();
         user.Property(item => item.PasswordHash).IsRequired();
         user.Property(item => item.Role).HasMaxLength(20).IsRequired();
+        user.Property(item => item.Phone).HasMaxLength(20);
         user.Property(item => item.CreatedAt).IsRequired();
         user.HasIndex(item => item.NormalizedEmail).IsUnique();
 
@@ -41,5 +44,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         service.Property(item => item.Category).HasMaxLength(100).IsRequired();
         service.Property(item => item.Price).HasColumnType("decimal(18,2)").IsRequired();
         service.Property(item => item.CreatedAt).IsRequired();
+
+        var order = modelBuilder.Entity<Order>();
+        order.ToTable("orders");
+        order.HasKey(item => item.Id);
+        order.Property(item => item.Status).HasMaxLength(50).IsRequired();
+        order.Property(item => item.TotalAmount).HasColumnType("decimal(18,2)").IsRequired();
+        
+        var orderService = modelBuilder.Entity<OrderService>();
+        orderService.ToTable("order_services");
+        orderService.HasKey(item => item.Id);
     }
 }

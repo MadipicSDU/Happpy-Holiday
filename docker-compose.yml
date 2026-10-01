@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: happyholiday-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: madi2007
+      POSTGRES_DB: HappyHoliday
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: happyholiday-api
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Database=HappyHoliday;Username=postgres;Password=madi2007;
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5294:8080"
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: happyholiday-ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: happyholiday-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@happyholiday.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

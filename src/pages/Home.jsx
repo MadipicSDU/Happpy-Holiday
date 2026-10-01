@@ -1,21 +1,14 @@
 import React from 'react';
 import { Search, Calendar, Users, Clock } from 'lucide-react';
 
-export default function Home({ onNavigate, nextEvent }) {
-  const event = nextEvent || {
-    id: 'HH-492318',
-    title: 'Alex & Sarah Wedding Reception',
-    venue: 'Grand Ballroom Atrium',
-    date: 'Oct 14, 2025 (10:00 AM - 16:00 PM)',
-    guests: 120,
-    status: 'confirmed',
-    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=600&auto=format&fit=crop'
-  };
+export default function Home({ onNavigate, nextEvent, currentUser }) {
+  // Use real display name, fallback to "User" if missing
+  const firstName = currentUser?.displayName ? currentUser.displayName.split(' ')[0] : 'User';
 
   return (
     <div className="home-page">
       <div className="page-header">
-        <h1 className="page-title">Welcome back, Alex</h1>
+        <h1 className="page-title">Welcome back, {firstName}</h1>
         <p className="page-subtitle">Find, book, and manage beautiful event spaces for any occasion.</p>
       </div>
 
@@ -61,33 +54,54 @@ export default function Home({ onNavigate, nextEvent }) {
       {/* Your Next Event Section */}
       <div className="next-event-section">
         <div className="section-label">Your Next Event</div>
-        <div className="next-event-card">
-          <div className="event-card-left">
-            <img 
-              src={event.image} 
-              alt={event.venue} 
-              className="event-venue-thumb" 
-            />
-            <div className="event-venue-details">
-              <h3 className="event-venue-title">{event.venue}</h3>
-              <div className="event-meta-row">
-                <div className="event-meta-item">
-                  <Calendar size={15} />
-                  <span>{event.date}</span>
-                </div>
-                <div className="event-meta-item">
-                  <Users size={15} />
-                  <span>{event.guests} Guests</span>
+        
+        {nextEvent ? (
+          <div className="next-event-card">
+            <div className="event-card-left">
+              <img 
+                src={nextEvent.image} 
+                alt={nextEvent.venue} 
+                className="event-venue-thumb" 
+              />
+              <div className="event-venue-details">
+                <h3 className="event-venue-title">{nextEvent.venue}</h3>
+                <div className="event-meta-row">
+                  <div className="event-meta-item">
+                    <Calendar size={15} />
+                    <span>{nextEvent.date}</span>
+                  </div>
+                  <div className="event-meta-item">
+                    <Users size={15} />
+                    <span>{nextEvent.guests} Guests</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="event-card-right">
-            <span className="status-badge confirmed">Booking Confirmed</span>
-            <span className="ref-code">Ref: {event.id}</span>
+            <div className="event-card-right">
+              <span className={`status-badge ${nextEvent.status}`}>{nextEvent.statusLabel}</span>
+              <span className="ref-code">Ref: {nextEvent.id}</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{
+            background: '#f8fafc',
+            border: '1px dashed #cbd5e1',
+            borderRadius: '12px',
+            padding: '32px',
+            textAlign: 'center',
+            color: '#64748b'
+          }}>
+            <Calendar size={32} style={{ opacity: 0.5, margin: '0 auto 12px' }} />
+            <p style={{ fontSize: '14px', marginBottom: '16px' }}>You don't have any upcoming events.</p>
+            <button 
+              className="btn-solid-primary"
+              onClick={() => onNavigate('spaces')}
+            >
+              Book a Space
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -77,8 +77,19 @@ builder.Services.AddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>
 builder.Services.AddSingleton<ITokenService, TokenService>();
 builder.Services.AddHostedService<ManagerAccountSeeder>();
 builder.Services.AddHostedService<AdminAccountSeeder>();
+builder.Services.AddHostedService<DbSeeder>();
 
 builder.Services.AddControllers();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -113,7 +124,7 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await database.Database.MigrateAsync();
+    await database.Database.EnsureCreatedAsync();
 }
 
 if (app.Environment.IsDevelopment())
@@ -127,6 +138,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

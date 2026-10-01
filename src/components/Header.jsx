@@ -1,41 +1,48 @@
 import React from 'react';
-import { Calendar, Repeat } from 'lucide-react';
+import { Calendar, LogOut } from 'lucide-react';
 
-export default function Header({ currentRole, setRole, activeTab, setActiveTab }) {
-  const isManager = currentRole === 'manager';
+export default function Header({ currentRole, activeTab, setActiveTab, currentUser, onLogout }) {
+  const isManager = currentRole === 'manager' || currentRole === 'admin';
+  const isAdmin = currentRole === 'admin';
 
   const clientLinks = [
-    { id: 'home', label: 'Home' },
+    { id: 'home',   label: 'Home' },
     { id: 'spaces', label: 'Browse Spaces' },
-    { id: 'events', label: 'My Events' }
+    { id: 'events', label: 'My Events' },
   ];
 
   const managerLinks = [
-    { id: 'orders', label: 'Orders' },
-    { id: 'clients', label: 'Clients' },
-    { id: 'schedule', label: 'Schedule' },
-    { id: 'analytics', label: 'Analytics' }
+    { id: 'orders',    label: 'Order Queue' },
+    { id: 'clients',   label: 'My Clients' },
+    { id: 'schedule',  label: 'Schedule' },
+    { id: 'analytics', label: 'Analytics' },
   ];
 
-  const links = isManager ? managerLinks : clientLinks;
+  let links = clientLinks;
+  if (isAdmin) {
+    links = [{ id: 'admin', label: 'Admin Dashboard' }, ...managerLinks];
+  } else if (isManager) {
+    links = managerLinks;
+  }
 
-  const toggleRole = () => {
-    if (isManager) {
-      setRole('client');
-      setActiveTab('home');
-    } else {
-      setRole('manager');
-      setActiveTab('orders');
-    }
-  };
+  const initials = currentUser?.displayName
+    ? currentUser.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
+  const roleLabel = currentUser?.role === 'admin'
+    ? 'Admin'
+    : currentUser?.role === 'manager'
+    ? 'Manager'
+    : 'Client';
 
   return (
     <header className="site-header">
       <div className="header-container">
         {/* Brand */}
-        <div 
-          className="brand-wrapper" 
+        <div
+          className="brand-wrapper"
           onClick={() => setActiveTab(isManager ? 'orders' : 'home')}
+          style={{ cursor: 'pointer' }}
         >
           <div className="brand-icon">
             <Calendar size={18} strokeWidth={2.4} />
@@ -43,9 +50,9 @@ export default function Header({ currentRole, setRole, activeTab, setActiveTab }
           <span className="brand-text">Happy Holiday</span>
         </div>
 
-        {/* Navigation items */}
+        {/* Nav */}
         <nav className="nav-links">
-          {links.map((link) => (
+          {links.map(link => (
             <button
               key={link.id}
               className={`nav-item ${activeTab === link.id ? 'active' : ''}`}
@@ -56,25 +63,29 @@ export default function Header({ currentRole, setRole, activeTab, setActiveTab }
           ))}
         </nav>
 
-        {/* Right side: Switcher & User Avatar */}
+        {/* Right side — user info + logout only, no role switcher */}
         <div className="header-right">
-          <button 
-            className="role-switcher-btn" 
-            onClick={toggleRole}
-            title="Toggle between Client and Manager portal views"
-          >
-            <Repeat size={13} />
-            <span>{isManager ? 'Switch to Client View' : 'Switch to Manager View'}</span>
-          </button>
-
           <div className="user-profile">
-            <div className="user-avatar">
-              {isManager ? 'M' : 'A'}
+            <div className="user-avatar" title={roleLabel}>{initials}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+              <span className="user-name">{currentUser?.displayName || 'User'}</span>
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>{roleLabel}</span>
             </div>
-            <span className="user-name">
-              {isManager ? 'Manager Portal' : 'Alex Wong'}
-            </span>
           </div>
+
+          <button
+            onClick={onLogout}
+            title="Logout"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              background: 'none', border: '1px solid #e2e8f0',
+              borderRadius: '6px', padding: '6px 12px',
+              cursor: 'pointer', color: '#64748b', fontSize: '13px'
+            }}
+          >
+            <LogOut size={14} />
+            Logout
+          </button>
         </div>
       </div>
     </header>

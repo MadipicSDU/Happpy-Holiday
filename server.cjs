@@ -3,11 +3,12 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
+const PUBLIC_DIR = path.join(__dirname, 'dist');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
-  '.jsx': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json',
   '.png': 'image/png',
@@ -18,15 +19,17 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(__dirname, req.url.split('?')[0]);
-  if (req.url === '/' || req.url === '') {
-    filePath = path.join(__dirname, 'index.html');
+  let reqPath = req.url.split('?')[0];
+  if (reqPath === '/' || reqPath === '') {
+    reqPath = '/index.html';
   }
+  
+  let filePath = path.join(PUBLIC_DIR, reqPath);
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       // Fallback to index.html for SPA routing
-      filePath = path.join(__dirname, 'index.html');
+      filePath = path.join(PUBLIC_DIR, 'index.html');
     }
 
     const ext = path.extname(filePath).toLowerCase();
@@ -45,5 +48,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n🎉 Happy Holiday React App is running at: http://localhost:${PORT}\n`);
+  console.log(`\n??% Happy Holiday React App is running at: http://localhost:${PORT}\n`);
 });

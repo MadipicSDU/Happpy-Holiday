@@ -1,13 +1,24 @@
 {
-  "name": "happy-patient",
-  "version": "1.0.0",
-  "description": "Happy Holiday - Event Spaces & Management Frontend in React",
-  "main": "server.js",
+  "name": "happy-holiday-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "server.cjs",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.cjs",
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "keywords": ["react", "event-booking", "happy-holiday"],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "lucide-react": "^0.292.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  }
 }

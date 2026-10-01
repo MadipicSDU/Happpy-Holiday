@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace HappyHoliday.Contracts;
 
-public sealed class RegisterRequest
+public sealed class CreateStaffRequest
 {
     [Required, StringLength(100, MinimumLength = 2)]
     public string DisplayName { get; init; } = string.Empty;
@@ -12,6 +12,9 @@ public sealed class RegisterRequest
 
     [Required, StringLength(128, MinimumLength = 8)]
     public string Password { get; init; } = string.Empty;
+
+    [Required, StringLength(20)]
+    public string Role { get; init; } = string.Empty;
 
     [Phone, StringLength(20)]
     public string? Phone { get; init; }
