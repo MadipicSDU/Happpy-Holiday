@@ -1,192 +1,37 @@
-import React, { useState } from 'react';
-import { initialTimelineSlots } from '../data/mockData';
-import { Send, CheckCircle2 } from 'lucide-react';
-
-export default function VenueSchedule({ showToast }) {
-  const [timelineData, setTimelineData] = useState(initialTimelineSlots);
-
-  // Invoice generator state matching Figma values exactly
-  const [clientName, setClientName] = useState('Sarah Jenkins');
-  const [bookingRef, setBookingRef] = useState('HH-492318');
-  const [amount, setAmount] = useState('1,800 ₸');
-  const [dueDate, setDueDate] = useState('Oct 24, 2025');
-
-  // Invoice preview state
-  const [previewInvoice, setPreviewInvoice] = useState({
-    invNumber: '#INV-2025-082',
-    venueTitle: 'The Crystal Greenhouse Booking',
-    rentalSubtitle: '12 hours space rental · Sarah Jenkins',
-    totalDue: '1,800 ₸'
-  });
-
-  const handleGenerateInvoice = (e) => {
-    e.preventDefault();
-    const invCode = `#INV-2025-${Math.floor(100 + Math.random() * 900)}`;
-    setPreviewInvoice({
-      invNumber: invCode,
-      venueTitle: bookingRef === 'HH-492318' ? 'Grand Ballroom Atrium Booking' : 'The Crystal Greenhouse Booking',
-      rentalSubtitle: `12 hours space rental · ${clientName}`,
-      totalDue: amount.endsWith('₸') ? amount : `${amount} ₸`
-    });
-    showToast(`Invoice ${invCode} generated for ${clientName}!`);
+import usePagination from '../usePagination';
+import React, { useState, useEffect } from 'react';
+import { CalendarDays, ArrowRight, Check, RefreshCw, Search } from 'lucide-react';
+import { api } from '../services/api';
+import { PageHeading, ErrorNotice, EmptyState, Loading, Status, Pagination } from '../components/UI';
+import { localInput, dateTime, zone } from '../utils';
+export default function VenueSchedule({ token, refreshVersion }) {
+  const [from, setFrom] = useState(() => { const date = new Date(); date.setHours(0, 0, 0, 0); return localInput(date); });
+  const [to, setTo] = useState(() => { const date = new Date(); date.setDate(date.getDate() + 1); date.setHours(0, 0, 0, 0); return localInput(date); });
+  const [range, setRange] = useState(() => { const start = new Date(); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 1); return { from: start.toISOString(), to: end.toISOString() }; });
+  const [rows, setRows] = useState([]), [busy, setBusy] = useState(true), [error, setError] = useState(''), [search, setSearch] = useState('');
+  const [version, setVersion] = useState(0), [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const abort = new AbortController(); setBusy(true); setError('');
+    api.premises.occupancy(token, range.from, range.to, abort.signal).then(data => { if (!abort.signal.aborted) { setRows(data); setLoaded(true); } })
+      .catch(err => { if (err.name !== 'AbortError') { setError(err.message); setLoaded(false); } }).finally(() => { if (!abort.signal.aborted) setBusy(false); });
+    return () => abort.abort();
+  }, [token, range, version, refreshVersion]);
+  const apply = event => {
+    event.preventDefault(); const start = new Date(from), end = new Date(to);
+    if (!from || !to || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start || end - start > 366 * 86400000) { setError('Choose a start and a later end, up to 366 days apart.'); return; }
+    setLoaded(false); setRange({ from: start.toISOString(), to: end.toISOString() });
   };
-
-  const handleSendInvoice = () => {
-    showToast(`Invoice ${previewInvoice.invNumber} sent to ${clientName}!`);
-  };
-
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-
-  return (
-    <div className="venue-schedule-page">
-      <div className="page-header">
-        <h1 className="page-title">Venue Schedule</h1>
-        <p className="page-subtitle">Coordinate weekly hall occupancy and issue verified client invoices.</p>
-      </div>
-
-      <div className="schedule-invoice-layout">
-        {/* Left: Venue Timeline */}
-        <div className="timeline-card">
-          <div className="timeline-top-bar">
-            <span className="timeline-title">Weekly Timeline (Oct 12 - Oct 18)</span>
-            <div className="timeline-legend">
-              <div className="legend-item">
-                <span className="legend-square corporate"></span>
-                <span>Corporate</span>
-              </div>
-              <div className="legend-item">
-                <span className="legend-square social"></span>
-                <span>Social</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="timeline-grid">
-            {/* Header row */}
-            <div></div>
-            {days.map((day) => (
-              <div key={day} className="timeline-header-cell">{day}</div>
-            ))}
-
-            {/* Venue rows */}
-            {timelineData.map((row) => (
-              <React.Fragment key={row.venue}>
-                <div className="venue-row-name">{row.venue}</div>
-                <div className="timeline-row-tracks">
-                  {/* Slot guide grid lines */}
-                  {days.map((d, idx) => (
-                    <div 
-                      key={idx} 
-                      className="timeline-slot-divider"
-                      style={{ borderRight: idx === 4 ? 'none' : '1px dashed #e2e8f0' }}
-                    />
-                  ))}
-
-                  {/* Render events spanning tracks */}
-                  {row.events.map((evt) => {
-                    const colWidthPercent = 20; // 5 columns = 20% each
-                    const leftPercent = (evt.startCol - 1) * colWidthPercent;
-                    const widthPercent = evt.spanCols * colWidthPercent - 1;
-
-                    return (
-                      <div
-                        key={evt.id}
-                        className={`timeline-event-bar ${evt.type}`}
-                        style={{
-                          left: `calc(${leftPercent}% + 4px)`,
-                          width: `calc(${widthPercent}% - 8px)`
-                        }}
-                        title={`${evt.title} (${row.venue})`}
-                      >
-                        {evt.title}
-                      </div>
-                    );
-                  })}
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-
-        {/* Right: Invoice Generator + Invoice Preview */}
-        <div className="invoice-column">
-          {/* Invoice Generator Card */}
-          <div className="invoice-gen-card">
-            <h2 className="invoice-card-title">Invoice Generator</h2>
-            <form onSubmit={handleGenerateInvoice}>
-              <div className="form-group">
-                <label>Client Name</label>
-                <input 
-                  type="text" 
-                  value={clientName} 
-                  onChange={(e) => setClientName(e.target.value)} 
-                  required 
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Booking Reference</label>
-                <input 
-                  type="text" 
-                  value={bookingRef} 
-                  onChange={(e) => setBookingRef(e.target.value)} 
-                  required 
-                />
-              </div>
-
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label>Amount (₸ / KZT)</label>
-                  <input 
-                    type="text" 
-                    value={amount} 
-                    onChange={(e) => setAmount(e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Due Date</label>
-                  <input 
-                    type="text" 
-                    value={dueDate} 
-                    onChange={(e) => setDueDate(e.target.value)} 
-                    required 
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="btn-full-primary">
-                Generate Invoice
-              </button>
-            </form>
-          </div>
-
-          {/* Invoice Preview Card */}
-          <div className="invoice-preview-card">
-            <div className="preview-top-row">
-              <span className="preview-badge">INVOICE PREVIEW</span>
-              <span className="preview-inv-number">{previewInvoice.invNumber}</span>
-            </div>
-
-            <h3 className="preview-heading">{previewInvoice.venueTitle}</h3>
-            <p className="preview-subtext">{previewInvoice.rentalSubtitle}</p>
-
-            <div className="preview-total-row">
-              <span className="preview-total-label">Total Due:</span>
-              <span className="preview-total-val">{previewInvoice.totalDue}</span>
-            </div>
-
-            <button 
-              className="btn-full-primary" 
-              onClick={handleSendInvoice}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-            >
-              <Send size={15} />
-              <span>Send to Client</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const filtered = rows.filter(row => `${row.name} ${row.address}`.toLowerCase().includes(search.toLowerCase()));
+  const pagination = usePagination(filtered, `${search}|${range.from}|${range.to}`);
+  const occupied = rows.filter(row => !row.available).length;
+  return <><PageHeading eyebrow="Scheduling" title="Venue occupancy" description="Check which venues are occupied during a selected rental period." action={<button className="button secondary" onClick={() => setVersion(value => value + 1)} disabled={busy}><RefreshCw size={16} />Refresh occupancy</button>} />
+    <form className="panel occupancy-controls" onSubmit={apply}><label className="field">Period starts<input type="datetime-local" required value={from} onInput={event => setFrom(event.target.value)} /></label><label className="field">Period ends<input type="datetime-local" required min={from} value={to} onInput={event => setTo(event.target.value)} /></label><button className="button primary" disabled={busy} type="submit">Check occupancy<ArrowRight size={16} /></button><p className="small muted">Local time · {zone()}</p></form>
+    <ErrorNotice message={error} onRetry={loaded ? undefined : () => setVersion(value => value + 1)} />
+    {busy ? <Loading label="Checking venue occupancy…" /> : loaded && <><div className="occupancy-summary"><div><strong>{rows.length - occupied}</strong><span>Available for the full period</span></div><div><strong>{occupied}</strong><span>Occupied during this period</span></div><div><strong>{rows.length}</strong><span>Venues in the catalogue</span></div></div><div className="section-heading"><div><h2>Rental availability</h2><p className="small muted">{dateTime(range.from)} – {dateTime(range.to)}</p></div><label className="search-field compact-search"><Search size={16} /><input aria-label="Search occupancy venues" placeholder="Search venues" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
+      <div className="occupancy-list">{pagination.items.map(row => <article className="panel occupancy-card" key={row.id}><div className="occupancy-venue"><div><h3>{row.name}</h3><p className="muted small">{row.address} · Up to {row.capacity} guests</p></div><span className={`availability ${row.available ? 'free' : 'occupied'}`}>{row.available ? <Check size={15} /> : <CalendarDays size={15} />}{row.available ? 'Available' : 'Occupied'}</span></div>
+      {row.bookings.length ? <div className="occupied-periods">{[...row.bookings].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).map(booking => <div key={booking.id}><div><strong>{dateTime(booking.startsAt)} – {dateTime(booking.endsAt)}</strong><span className="short-reference">{booking.id}</span></div><Status status={booking.status} /></div>)}</div> : <p className="availability-note">No active bookings overlap the selected period.</p>}</article>)}</div>
+    <Pagination pagination={pagination} />
+      {!filtered.length && <EmptyState title="No venues to display" description={rows.length ? 'Try another venue name or address.' : 'Add venues to the catalogue to see their occupancy.'} />}
+      <p className="table-footnote small muted">This is a snapshot of active bookings when checked. A venue marked occupied has at least one overlapping reservation.</p></>}
+  </>;
 }
