@@ -6,6 +6,7 @@ using HappyHoliday.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HappyHoliday.Controllers;
 
@@ -17,6 +18,7 @@ public sealed class AuthController(
     ITokenService tokens) : ControllerBase
 {
     [HttpPost("register")]
+    [EnableRateLimiting("authentication")]
     [AllowAnonymous]
     [ProducesResponseType<AuthResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
@@ -24,6 +26,8 @@ public sealed class AuthController(
         RegisterRequest request,
         CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.DisplayName) || request.DisplayName.Trim().Length < 2)
+            return BadRequest(new ProblemDetails { Detail = "Display name must contain at least two characters." });
         var result = await RegisterUserAsync(request, UserRoles.Client, cancellationToken);
         if (result is null)
         {
@@ -40,7 +44,7 @@ public sealed class AuthController(
     }
 
     [HttpPost("managers")]
-    [Authorize(Roles = UserRoles.Manager)]
+    [Authorize(Roles = UserRoles.Admin)]
     [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<UserResponse>> RegisterManager(
@@ -69,10 +73,12 @@ public sealed class AuthController(
         CreateStaffRequest request,
         CancellationToken cancellationToken)
     {
+        if (request.Role is not (UserRoles.Manager or UserRoles.Admin))
+            return BadRequest(new ProblemDetails { Detail = "Staff role must be manager or admin." });
         var result = await RegisterUserAsync(
             new RegisterRequest { DisplayName = request.DisplayName, Email = request.Email, Password = request.Password, Phone = request.Phone },
             request.Role,
-            cancellationToken);
+            cancellationToken, request.ClientLimit);
 
         if (result is null)
         {
@@ -88,6 +94,7 @@ public sealed class AuthController(
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("authentication")]
     [AllowAnonymous]
     [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
@@ -119,7 +126,8 @@ public sealed class AuthController(
     private async Task<AppUser?> RegisterUserAsync(
         RegisterRequest request,
         string role,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int clientLimit = 10)
     {
         var email = request.Email.Trim();
         var user = new AppUser
@@ -129,6 +137,7 @@ public sealed class AuthController(
             NormalizedEmail = PostgresUserRepository.NormalizeEmail(email),
             PasswordHash = string.Empty,
             Role = role,
+            ClientLimit = clientLimit,
             Phone = request.Phone?.Trim()
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);

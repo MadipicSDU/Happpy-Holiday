@@ -10,5 +10,7 @@ public static class UserMappingExtensions
         user.DisplayName,
         user.Email,
         user.Role,
-        user.CreatedAt);
+        user.CreatedAt,
+        user.Phone,
+        user.ClientLimit);
 }

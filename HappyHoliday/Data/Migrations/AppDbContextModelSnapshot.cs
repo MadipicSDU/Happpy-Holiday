@@ -28,6 +28,9 @@ namespace HappyHoliday.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("ClientLimit")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -49,6 +52,10 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -102,6 +109,11 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("LegacyEstimate").HasColumnType("boolean");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("EventDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -111,8 +123,24 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<Guid?>("ManagerId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("PremiseAddress")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<Guid>("PremiseId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("PremiseName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("RentalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("RentalRate")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -128,7 +156,7 @@ namespace HappyHoliday.Data.Migrations
 
                     b.HasIndex("ManagerId");
 
-                    b.HasIndex("PremiseId");
+                    b.HasIndex("PremiseId", "EventDate", "EndDate");
 
                     b.ToTable("orders", (string)null);
                 });
@@ -138,8 +166,20 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<Guid>("EventServiceId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("OrderId")
                         .IsRequired()
@@ -148,11 +188,16 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EventServiceId");
 
-                    b.HasIndex("OrderId");
+                    b.HasIndex("OrderId", "EventServiceId")
+                        .IsUnique();
 
                     b.ToTable("order_services", (string)null);
                 });
@@ -178,6 +223,10 @@ namespace HappyHoliday.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -196,17 +245,18 @@ namespace HappyHoliday.Data.Migrations
                     b.HasOne("HappyHoliday.Models.AppUser", "Client")
                         .WithMany()
                         .HasForeignKey("ClientId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("HappyHoliday.Models.AppUser", "Manager")
                         .WithMany()
-                        .HasForeignKey("ManagerId");
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HappyHoliday.Models.Premise", "Premise")
                         .WithMany()
                         .HasForeignKey("PremiseId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Client");
@@ -221,7 +271,7 @@ namespace HappyHoliday.Data.Migrations
                     b.HasOne("HappyHoliday.Models.EventService", "EventService")
                         .WithMany()
                         .HasForeignKey("EventServiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("HappyHoliday.Models.Order", "Order")

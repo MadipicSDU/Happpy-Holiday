@@ -6,7 +6,7 @@ namespace HappyHoliday.Models;
 public class Order
 {
     [Key]
-    public string Id { get; set; } = $"ORD-{new Random().Next(1000, 9999)}";
+    public string Id { get; set; } = $"ORD-{Guid.NewGuid():N}";
 
     [Required]
     public Guid ClientId { get; set; }
@@ -23,9 +23,15 @@ public class Order
     public AppUser? Manager { get; set; }
 
     public DateTime EventDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public string PremiseName { get; set; } = string.Empty;
+    public string PremiseAddress { get; set; } = string.Empty;
+    public decimal RentalRate { get; set; }
+    public decimal RentalAmount { get; set; }
+    public bool LegacyEstimate { get; set; }
     public int ExpectedGuests { get; set; }
 
-    public string Status { get; set; } = "awaiting-payment"; // awaiting-payment, confirmed, change-requested, completed
+    public string Status { get; set; } = "pending";
 
     public decimal TotalAmount { get; set; }
 
@@ -48,4 +54,8 @@ public class OrderService
     public EventService? EventService { get; set; }
     
     public int Quantity { get; set; } = 1;
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public decimal UnitPrice { get; set; }
+    public decimal Amount { get; set; }
 }

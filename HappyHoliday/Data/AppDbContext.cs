@@ -50,9 +50,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         order.HasKey(item => item.Id);
         order.Property(item => item.Status).HasMaxLength(50).IsRequired();
         order.Property(item => item.TotalAmount).HasColumnType("decimal(18,2)").IsRequired();
+        order.Property(item => item.RentalRate).HasPrecision(18, 2);
+        order.Property(item => item.RentalAmount).HasPrecision(18, 2);
+        order.HasIndex(item => new { item.PremiseId, item.EventDate, item.EndDate });
+        order.HasOne(item => item.Client).WithMany().HasForeignKey(item => item.ClientId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(item => item.Manager).WithMany().HasForeignKey(item => item.ManagerId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne(item => item.Premise).WithMany().HasForeignKey(item => item.PremiseId).OnDelete(DeleteBehavior.Restrict);
         
         var orderService = modelBuilder.Entity<OrderService>();
         orderService.ToTable("order_services");
         orderService.HasKey(item => item.Id);
+        orderService.Property(item => item.UnitPrice).HasPrecision(18, 2);
+        orderService.Property(item => item.Amount).HasPrecision(18, 2);
+        orderService.HasOne(item => item.EventService).WithMany().HasForeignKey(item => item.EventServiceId).OnDelete(DeleteBehavior.Restrict);
+        orderService.HasIndex(item => new { item.OrderId, item.EventServiceId }).IsUnique();
     }
 }

@@ -5,4 +5,6 @@ public sealed record UserResponse(
     string DisplayName,
     string Email,
     string Role,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? Phone,
+    int ClientLimit);

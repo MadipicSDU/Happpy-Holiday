@@ -39,8 +39,7 @@ public sealed class DbSeeder(
                 new EventService { Name = "Premium Catering Package",   Category = "FoodPreparation",  Description = "3-course meal with champagne reception",     Price = 150 },
                 new EventService { Name = "Standard Buffet",            Category = "FoodPreparation",  Description = "Buffet-style catering for up to 200 guests", Price = 80  },
                 new EventService { Name = "Standard A/V Equipment",     Category = "EquipmentRental",  Description = "Projector, screen, and 2 wireless mics",     Price = 300 },
-                new EventService { Name = "Stage & Lighting Rig",       Category = "EquipmentRental",  Description = "Full LED stage lighting + follow spot",      Price = 550 },
-                new EventService { Name = "Floral Arrangement Package",  Category = "Decoration",       Description = "Centrepieces and entrance floral arch",      Price = 400 }
+                new EventService { Name = "Stage & Lighting Rig",       Category = "EquipmentRental",  Description = "Full LED stage lighting + follow spot",      Price = 550 }
             );
             await db.SaveChangesAsync(cancellationToken);
         }
@@ -83,14 +82,22 @@ public sealed class DbSeeder(
             for (int i = 0; i < clients.Length; i++)
             {
                 var premise = premises[i % premises.Count];
+                var start = DateTime.UtcNow.AddDays(random.Next(10, 90));
+                var hours = random.Next(3, 8);
                 orders.Add(new Order
                 {
                     ClientId       = clients[i].Id,
                     PremiseId      = premise.Id,
-                    EventDate      = DateTime.UtcNow.AddDays(random.Next(10, 90)),
+                    EventDate      = start,
+                    EndDate        = start.AddHours(hours),
+                    PremiseName    = premise.Name,
+                    PremiseAddress = premise.Address,
+                    RentalRate     = premise.PricePerHour,
+                    RentalAmount   = premise.PricePerHour * hours,
                     ExpectedGuests = random.Next(50, premise.Capacity),
                     Status         = statuses[i % statuses.Length],
-                    TotalAmount    = premise.PricePerHour * random.Next(3, 8)
+                    TotalAmount    = premise.PricePerHour * hours,
+                    ManagerId      = await db.Users.Where(u => u.Role == UserRoles.Manager).Select(u => (Guid?)u.Id).FirstOrDefaultAsync(cancellationToken)
                 });
             }
             db.Orders.AddRange(orders);

@@ -2,6 +2,7 @@ using HappyHoliday.Authentication;
 using HappyHoliday.Contracts;
 using HappyHoliday.Data;
 using HappyHoliday.Models;
+using HappyHoliday.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,133 +11,67 @@ using System.Security.Claims;
 namespace HappyHoliday.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-[Authorize]
-public class OrdersController(AppDbContext db) : ControllerBase
+[Route("api/orders")]
+[Authorize(Roles = "client,manager,admin")]
+public sealed class OrdersController(AppDbContext db, OrderingService ordering, TimeProvider clock) : ControllerBase
 {
-    // GET /api/orders  — clients see their own, managers see all
+    private Guid UserId => Guid.Parse(User.FindFirstValue("sub")!);
+    private IQueryable<Order> VisibleOrders()
+    {
+        var query = db.Orders.AsNoTracking().Include(o => o.Client).Include(o => o.OrderServices).AsQueryable();
+        if (User.IsInRole(UserRoles.Client)) query = query.Where(o => o.ClientId == UserId);
+        else if (User.IsInRole(UserRoles.Manager)) query = query.Where(o => o.ManagerId == UserId);
+        return query;
+    }
     [HttpGet]
-    public async Task<IActionResult> GetOrders()
-    {
-        var role   = User.FindFirstValue(ClaimTypes.Role);
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
-
-        var query = db.Orders
-            .Include(o => o.Client)
-            .Include(o => o.Premise)
-            .AsQueryable();
-
-        if (role == UserRoles.Client && Guid.TryParse(userId, out var id))
-            query = query.Where(o => o.ClientId == id);
-
-        var list = await query.OrderByDescending(o => o.EventDate).ToListAsync();
-
-        return Ok(list.Select(o => new
-        {
-            o.Id,
-            client      = o.Client?.DisplayName,
-            venue       = o.Premise?.Name,
-            eventDate   = o.EventDate.ToString("MMM dd, yyyy"),
-            o.Status,
-            statusLabel = StatusLabel(o.Status),
-            amount      = $"{o.TotalAmount:N0} ₸",
-            guests      = o.ExpectedGuests
-        }));
-    }
-
-    // GET /api/orders/{id}
+    public async Task<IActionResult> GetOrders(CancellationToken ct) =>
+        Ok((await VisibleOrders().OrderByDescending(o => o.EventDate).ToListAsync(ct)).Select(OrderingService.ToResponse));
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetOrder(string id)
+    public async Task<IActionResult> GetOrder(string id, CancellationToken ct)
     {
-        var order = await db.Orders.Include(o => o.Client).Include(o => o.Premise)
-                                   .FirstOrDefaultAsync(o => o.Id == id);
-        if (order == null) return NotFound();
-        return Ok(order);
+        var order = await VisibleOrders().SingleOrDefaultAsync(o => o.Id == id, ct);
+        return order is null ? NotFound() : Ok(OrderingService.ToResponse(order));
     }
-
-    // POST /api/orders — client creates booking
+    [HttpPost("quote")]
+    [Authorize(Roles = UserRoles.Client)]
+    public async Task<IActionResult> Quote(CreateOrderDto dto, CancellationToken ct) =>
+        Ok(await ordering.QuoteAsync(UserId, dto, ct));
     [HttpPost]
     [Authorize(Roles = UserRoles.Client)]
-    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
+    public async Task<IActionResult> CreateOrder(CreateOrderDto dto, CancellationToken ct)
     {
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
-        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-
-        var premise = await db.Premises.FindAsync(dto.PremiseId);
-        if (premise == null) return NotFound("Premise not found");
-
-        var order = new Order
-        {
-            ClientId       = userId,
-            PremiseId      = dto.PremiseId,
-            EventDate      = dto.EventDate,
-            ExpectedGuests = dto.Guests,
-            Status         = "awaiting-payment",
-            TotalAmount    = premise.PricePerHour * dto.DurationHours
-        };
-
-        if (dto.ServiceIds != null && dto.ServiceIds.Any())
-        {
-            var services = await db.EventServices.Where(s => dto.ServiceIds.Contains(s.Id)).ToListAsync();
-            foreach (var service in services)
-            {
-                order.OrderServices.Add(new OrderService
-                {
-                    EventServiceId = service.Id,
-                    Quantity = 1
-                });
-                order.TotalAmount += service.Price;
-            }
-        }
-
-        db.Orders.Add(order);
-        await db.SaveChangesAsync();
-        return Ok(new
-        {
-            order.Id,
-            venue       = premise.Name,
-            eventDate   = order.EventDate.ToString("MMM dd, yyyy"),
-            order.Status,
-            statusLabel = StatusLabel(order.Status),
-            amount      = $"{order.TotalAmount:N0} ₸",
-            guests      = order.ExpectedGuests
-        });
+        var order = await ordering.CreateAsync(UserId, dto, ct);
+        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, OrderingService.ToResponse(order));
     }
-
-    // PATCH /api/orders/{id}/status — client (cancel/change) or manager/admin
     [HttpPatch("{id}/status")]
-    public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateStatusDto dto)
+    public async Task<IActionResult> UpdateStatus(string id, UpdateStatusDto dto, CancellationToken ct)
     {
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
-
-        var order = await db.Orders.FindAsync(id);
-        if (order == null) return NotFound();
-
-        if (role == UserRoles.Client)
+        await using var transaction = await BookingTransaction.BeginAsync(db, ct);
+        var order = await db.Orders.SingleOrDefaultAsync(o => o.Id == id, ct);
+        if (order is null || (User.IsInRole(UserRoles.Client) && order.ClientId != UserId)
+            || (User.IsInRole(UserRoles.Manager) && order.ManagerId != UserId)) return NotFound();
+        if (order.Status == dto.Status) return Ok(new { order.Id, order.Status, statusLabel = OrderingService.StatusLabel(order.Status) });
+        if (!BookingRules.IsActive(order.Status)) return Conflict(new ProblemDetails { Detail = "Terminal orders cannot change status." });
+        if (User.IsInRole(UserRoles.Client))
         {
-            if (!Guid.TryParse(userIdStr, out var userId) || order.ClientId != userId)
-                return Forbid();
-
-            if (dto.Status != "change-requested" && dto.Status != "cancelled")
-                return BadRequest("Clients may only request changes or cancel bookings.");
+            if (dto.Status != "cancelled" || order.Status is not ("pending" or "awaiting-payment"))
+                return BadRequest(new ProblemDetails { Detail = "Clients may cancel pending or unpaid orders." });
         }
-
+        else
+        {
+            var allowed = (order.Status, dto.Status) switch
+            {
+                ("pending", "awaiting-payment") => true,
+                ("awaiting-payment", "confirmed") => true,
+                ("confirmed", "completed") => order.EndDate <= clock.GetUtcNow().UtcDateTime,
+                (_, "cancelled") => order.Status is "pending" or "awaiting-payment",
+                _ => false
+            };
+            if (!allowed) return BadRequest(new ProblemDetails { Detail = "Invalid order status transition." });
+        }
         order.Status = dto.Status;
-        await db.SaveChangesAsync();
-        return Ok(new { order.Id, order.Status, statusLabel = StatusLabel(order.Status) });
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return Ok(new { order.Id, order.Status, statusLabel = OrderingService.StatusLabel(order.Status) });
     }
-
-    private static string StatusLabel(string status) => status switch
-    {
-        "awaiting-payment"  => "Awaiting Payment",
-        "confirmed"         => "Confirmed",
-        "change-requested"  => "Change Requested",
-        "completed"         => "Completed",
-        "cancelled"         => "Cancelled",
-        _                   => status
-    };
 }
-
-public record CreateOrderDto(Guid PremiseId, DateTime EventDate, int Guests, int DurationHours = 4, List<Guid>? ServiceIds = null);
-public record UpdateStatusDto(string Status);

@@ -18,4 +18,6 @@ public sealed class CreateStaffRequest
 
     [Phone, StringLength(20)]
     public string? Phone { get; init; }
+    [Range(1, 1000)]
+    public int ClientLimit { get; init; } = 10;
 }

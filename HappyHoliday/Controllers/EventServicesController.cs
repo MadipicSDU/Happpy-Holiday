@@ -41,7 +41,7 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
     }
 
     [HttpPost]
-    [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Manager)]
+    [Authorize(Roles = UserRoles.Admin)]
     public async Task<ActionResult<EventService>> CreateService(EventService service, CancellationToken cancellationToken)
     {
         database.EventServices.Add(service);
@@ -50,7 +50,7 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Manager)]
+    [Authorize(Roles = UserRoles.Admin)]
     public async Task<IActionResult> UpdateService(Guid id, EventService updatedService, CancellationToken cancellationToken)
     {
         if (id != updatedService.Id)
@@ -74,7 +74,7 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Manager)]
+    [Authorize(Roles = UserRoles.Admin)]
     public async Task<IActionResult> DeleteService(Guid id, CancellationToken cancellationToken)
     {
         var service = await database.EventServices.FindAsync(new object[] { id }, cancellationToken);
@@ -83,6 +83,8 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
             return NotFound();
         }
 
+        if (await database.OrderServices.AnyAsync(s => s.EventServiceId == id, cancellationToken))
+            return Conflict(new ProblemDetails { Detail = "Services with booking history cannot be deleted." });
         database.EventServices.Remove(service);
         await database.SaveChangesAsync(cancellationToken);
         return NoContent();

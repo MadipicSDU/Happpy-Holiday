@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Security.Claims;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +53,21 @@ builder.Services
     .AddJwtBearer(options =>
     {
         options.MapInboundClaims = false;
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                if (!Guid.TryParse(context.Principal?.FindFirstValue("sub"), out var id))
+                {
+                    context.Fail("Invalid subject.");
+                    return;
+                }
+                var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id, context.HttpContext.RequestAborted);
+                if (user is null || user.Role != context.Principal?.FindFirstValue(ClaimTypes.Role))
+                    context.Fail("Account no longer exists or role has changed. Log in again.");
+            }
+        };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -73,19 +91,34 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IUserRepository, PostgresUserRepository>();
+builder.Services.AddScoped<OrderingService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 builder.Services.AddHostedService<ManagerAccountSeeder>();
 builder.Services.AddHostedService<AdminAccountSeeder>();
-builder.Services.AddHostedService<DbSeeder>();
+if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue("SeedDemoData", true))
+    builder.Services.AddHostedService<DbSeeder>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+    options.JsonSerializerOptions.Converters.Add(new HappyHoliday.Contracts.ExplicitOffsetDateTimeConverter()));
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("authentication", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+        var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?? ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"];
+        policy.WithOrigins(origins)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -124,7 +157,10 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await database.Database.EnsureCreatedAsync();
+    if (!((await database.Database.GetAppliedMigrationsAsync()).Any())
+        && await database.Database.SqlQueryRaw<bool>("SELECT to_regclass('public.users') IS NOT NULL AS \"Value\"").SingleAsync())
+        throw new InvalidOperationException("Legacy EnsureCreated database detected. Back it up and follow docs/backend-sprint2.md before applying migrations.");
+    await database.Database.MigrateAsync();
 }
 
 if (app.Environment.IsDevelopment())
@@ -139,7 +175,11 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.Run();
+
+public partial class Program;

@@ -1,6 +1,8 @@
 @HappyHoliday_HostAddress = http://localhost:5294
 @clientToken = paste-client-access-token-here
 @managerToken = paste-manager-access-token-here
+@adminToken = paste-admin-access-token-here
+@premiseId = paste-premise-guid-here
 
 ### Register a client
 POST {{HappyHoliday_HostAddress}}/api/auth/register
@@ -26,14 +28,14 @@ GET {{HappyHoliday_HostAddress}}/api/users/me
 Authorization: Bearer {{clientToken}}
 Accept: application/json
 
-### Manager-only endpoint
-GET {{HappyHoliday_HostAddress}}/api/users/manager-area
+### Assigned client worklist
+GET {{HappyHoliday_HostAddress}}/api/users/clients
 Authorization: Bearer {{managerToken}}
 Accept: application/json
 
-### Managers can create another manager
+### Admins can create another manager
 POST {{HappyHoliday_HostAddress}}/api/auth/managers
-Authorization: Bearer {{managerToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -42,4 +44,43 @@ Content-Type: application/json
   "password": "Manager456!"
 }
 
-###
+### Update client contact details
+PUT {{HappyHoliday_HostAddress}}/api/users/me
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "displayName": "Holiday Client",
+  "email": "client@example.com",
+  "phone": "+77001234567"
+}
+
+### Preview a future booking (change the dates if needed)
+POST {{HappyHoliday_HostAddress}}/api/orders/quote
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "premiseId": "{{premiseId}}",
+  "startsAt": "2026-12-01T14:00:00+05:00",
+  "endsAt": "2026-12-01T18:30:00+05:00",
+  "guests": 50,
+  "services": []
+}
+
+### Submit the booking
+POST {{HappyHoliday_HostAddress}}/api/orders
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
+
+{
+  "premiseId": "{{premiseId}}",
+  "startsAt": "2026-12-01T14:00:00+05:00",
+  "endsAt": "2026-12-01T18:30:00+05:00",
+  "guests": 50,
+  "services": []
+}
+
+### Occupancy (UTC query avoids encoding + signs)
+GET {{HappyHoliday_HostAddress}}/api/premises/occupancy?from=2026-12-01T00:00:00Z&to=2026-12-02T00:00:00Z
+Authorization: Bearer {{managerToken}}

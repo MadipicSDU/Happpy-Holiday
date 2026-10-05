@@ -6,3 +6,8 @@ dist
 bin/
 obj/
 appsettings.Development.json
+.test-postgres/
+TestResults/
+.env
+.env.*
+!.env.example

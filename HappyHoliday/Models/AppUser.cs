@@ -9,5 +9,6 @@ public sealed class AppUser
     public required string PasswordHash { get; set; }
     public required string Role { get; set; }
     public string? Phone { get; set; }
+    public int ClientLimit { get; set; } = 10;
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 }
