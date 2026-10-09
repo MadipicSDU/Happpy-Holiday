@@ -37,6 +37,10 @@ export const api = {
             headers: headers(token),
             body: JSON.stringify(data)
         }),
+        delete: (token, id) => fetch(`${API}/premises/${id}`, {
+            method: 'DELETE',
+            headers: headers(token)
+        }),
     },
     orders: {
         getAll: (token) => fetch(`${API}/orders`, { headers: headers(token) }).then(r => r.json()),
@@ -55,6 +59,10 @@ export const api = {
             headers: headers(token),
             body: JSON.stringify(data)
         }).then(r => r.json()),
+        delete: (token, id) => fetch(`${API}/users/${id}`, {
+            method: 'DELETE',
+            headers: headers(token)
+        }),
     },
     services: {
         getAll: (token) => fetch(`${API}/services`, { headers: headers(token) }).then(r => r.json()),
@@ -67,6 +75,10 @@ export const api = {
             method: 'PUT',
             headers: headers(token),
             body: JSON.stringify(data)
+        }),
+        delete: (token, id) => fetch(`${API}/services/${id}`, {
+            method: 'DELETE',
+            headers: headers(token)
         }),
     },
 };

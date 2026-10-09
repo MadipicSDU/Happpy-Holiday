@@ -29,13 +29,8 @@ export default function MyEvents({ events, onUpdateEvent, onCancelEvent, showToa
     e.preventDefault();
     if (!selectedEvent) return;
 
-    onUpdateEvent(selectedEvent.id, {
-      date: editDate,
-      guests: Number(editGuests)
-    });
-
+    onUpdateEvent(selectedEvent.id, 'change-requested');
     setIsModifyOpen(false);
-    showToast(`Booking ${selectedEvent.id} updated successfully!`);
   };
 
   const handleConfirmCancel = () => {
@@ -43,7 +38,6 @@ export default function MyEvents({ events, onUpdateEvent, onCancelEvent, showToa
 
     onCancelEvent(selectedEvent.id);
     setIsCancelOpen(false);
-    showToast(`Booking ${selectedEvent.id} has been cancelled.`);
   };
 
   return (

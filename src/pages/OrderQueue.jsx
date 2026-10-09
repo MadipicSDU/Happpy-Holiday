@@ -172,7 +172,7 @@ export default function OrderQueue({ orders, onUpdateOrderStatus, showToast }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
             <span style={{ color: '#64748b' }}>Contract Amount:</span>
-            <strong style={{ color: '#2563eb', fontSize: '15px' }}>{selectedOrder?.amount || '$1,800.00'}</strong>
+            <strong style={{ color: '#2563eb', fontSize: '15px' }}>{selectedOrder?.amount || '1,800 ₸'}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: '#64748b' }}>Current Status:</span>

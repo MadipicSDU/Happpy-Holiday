@@ -72,4 +72,19 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
         await database.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Manager)]
+    public async Task<IActionResult> DeleteService(Guid id, CancellationToken cancellationToken)
+    {
+        var service = await database.EventServices.FindAsync(new object[] { id }, cancellationToken);
+        if (service is null)
+        {
+            return NotFound();
+        }
+
+        database.EventServices.Remove(service);
+        await database.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
 }

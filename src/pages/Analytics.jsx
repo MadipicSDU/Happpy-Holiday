@@ -3,17 +3,17 @@ import { DollarSign, CalendarCheck, TrendingUp, Users } from 'lucide-react';
 
 export default function Analytics() {
   const stats = [
-    { label: 'Total Revenue', value: '$48,250', change: '+14.2% vs last month', icon: DollarSign, color: '#2563eb' },
+    { label: 'Total Revenue', value: '48,250 ₸', change: '+14.2% vs last month', icon: TrendingUp, color: '#2563eb' },
     { label: 'Confirmed Bookings', value: '28 Events', change: '+8 events this quarter', icon: CalendarCheck, color: '#16a34a' },
     { label: 'Space Occupancy', value: '84.6%', change: 'Peak weekend utilization', icon: TrendingUp, color: '#ea580c' },
     { label: 'Active Clients', value: '142 Hosts', change: '+18 new hosts registered', icon: Users, color: '#9333ea' }
   ];
 
   const venuePerformance = [
-    { name: 'Grand Ballroom Atrium', bookings: 12, revenue: '$28,800', occupancy: '92%' },
-    { name: 'The Crystal Greenhouse', bookings: 8, revenue: '$14,400', occupancy: '78%' },
-    { name: 'The Warehouse Atrium', bookings: 6, revenue: '$9,000', occupancy: '65%' },
-    { name: 'Horizon Skyline Terrace', bookings: 5, revenue: '$11,000', occupancy: '80%' }
+    { name: 'Grand Ballroom Atrium', bookings: 12, revenue: '28,800 ₸', occupancy: '92%' },
+    { name: 'The Crystal Greenhouse', bookings: 8, revenue: '14,400 ₸', occupancy: '78%' },
+    { name: 'The Warehouse Atrium', bookings: 6, revenue: '9,000 ₸', occupancy: '65%' },
+    { name: 'Horizon Skyline Terrace', bookings: 5, revenue: '11,000 ₸', occupancy: '80%' }
   ];
 
   return (

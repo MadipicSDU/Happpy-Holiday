@@ -108,7 +108,7 @@ export const initialOrders = [
     eventDate: 'Nov 02, 2025',
     status: 'awaiting-payment',
     statusLabel: 'Awaiting Payment',
-    amount: '$2,100.00',
+    amount: '2,100 ₸',
     guests: 110
   },
   {
@@ -118,7 +118,7 @@ export const initialOrders = [
     eventDate: 'Nov 15, 2025',
     status: 'confirmed',
     statusLabel: 'Confirmed',
-    amount: '$3,200.00',
+    amount: '3,200 ₸',
     guests: 200
   },
   {
@@ -128,7 +128,7 @@ export const initialOrders = [
     eventDate: 'Nov 18, 2025',
     status: 'change-requested',
     statusLabel: 'Change Requested',
-    amount: '$1,500.00',
+    amount: '1,500 ₸',
     guests: 85
   },
   {
@@ -138,7 +138,7 @@ export const initialOrders = [
     eventDate: 'Dec 01, 2025',
     status: 'completed',
     statusLabel: 'Completed',
-    amount: '$1,950.00',
+    amount: '1,950 ₸',
     guests: 130
   },
   {
@@ -148,7 +148,7 @@ export const initialOrders = [
     eventDate: 'Dec 10, 2025',
     status: 'confirmed',
     statusLabel: 'Confirmed',
-    amount: '$2,450.00',
+    amount: '2,450 ₸',
     guests: 140
   }
 ];
@@ -159,7 +159,7 @@ export const initialVenues = [
     name: 'Grand Ballroom Atrium',
     tag: 'Luxury Banquet',
     capacity: '120 - 250 Guests',
-    price: '$2,400',
+    price: '2,400 ₸',
     description: 'Opulent chandelier hall with double-height ceiling and bespoke banquet dining tables.',
     image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=800&auto=format&fit=crop'
   },
@@ -168,7 +168,7 @@ export const initialVenues = [
     name: 'The Crystal Greenhouse',
     tag: 'Botanical Glasshouse',
     capacity: '80 - 160 Guests',
-    price: '$1,800',
+    price: '1,800 ₸',
     description: 'Lush enclosed garden enclosed under vintage iron glass arches with ambient warm string lighting.',
     image: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?q=80&w=800&auto=format&fit=crop'
   },
@@ -177,7 +177,7 @@ export const initialVenues = [
     name: 'The Warehouse Atrium',
     tag: 'Industrial Chic',
     capacity: '90 - 220 Guests',
-    price: '$1,500',
+    price: '1,500 ₸',
     description: 'Polished concrete floors, exposed brick accents, and flexible modular stage architecture.',
     image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=800&auto=format&fit=crop'
   },
@@ -186,7 +186,7 @@ export const initialVenues = [
     name: 'Whispering Pines Lodge',
     tag: 'Rustic Alpine',
     capacity: '50 - 120 Guests',
-    price: '$1,950',
+    price: '1,950 ₸',
     description: 'Warm timber interiors with grand stone fireplace, panoramic mountain views, and cozy terraces.',
     image: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?q=80&w=800&auto=format&fit=crop'
   },
@@ -195,7 +195,7 @@ export const initialVenues = [
     name: 'Horizon Skyline Terrace',
     tag: 'Rooftop Panoramic',
     capacity: '70 - 150 Guests',
-    price: '$2,200',
+    price: '2,200 ₸',
     description: 'High-altitude open sky lounge with illuminated city skyline backdrop and modern cocktail bar.',
     image: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=800&auto=format&fit=crop'
   },
@@ -204,7 +204,7 @@ export const initialVenues = [
     name: 'Metropolitan Symphony Hall',
     tag: 'Acoustic Concert',
     capacity: '150 - 350 Guests',
-    price: '$3,200',
+    price: '3,200 ₸',
     description: 'Historic auditorium crafted with pristine acoustics, tiered theatre seating, and concert-grade AV.',
     image: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?q=80&w=800&auto=format&fit=crop'
   }

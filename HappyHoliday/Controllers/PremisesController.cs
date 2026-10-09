@@ -60,7 +60,23 @@ public sealed class PremisesController(AppDbContext database) : ControllerBase
         premise.Address = updatedPremise.Address;
         premise.Capacity = updatedPremise.Capacity;
         premise.PricePerHour = updatedPremise.PricePerHour;
+        premise.ImageUrl = updatedPremise.ImageUrl;
 
+        await database.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Manager)]
+    public async Task<IActionResult> DeletePremise(Guid id, CancellationToken cancellationToken)
+    {
+        var premise = await database.Premises.FindAsync(new object[] { id }, cancellationToken);
+        if (premise is null)
+        {
+            return NotFound();
+        }
+
+        database.Premises.Remove(premise);
         await database.SaveChangesAsync(cancellationToken);
         return NoContent();
     }

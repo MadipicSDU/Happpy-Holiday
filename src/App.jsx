@@ -67,7 +67,7 @@ export default function App() {
         tag:         'Rental Venue',
         capacity:    `${p.capacity} Guests`,
         rawCapacity: p.capacity,
-        price:       `$${p.pricePerHour}/hr`,
+        price:       `${p.pricePerHour?.toLocaleString()} ₸/hr`,
         rawPrice:    p.pricePerHour,
         description: p.description || p.address,
         image:       p.imageUrl || venueImage(p.name),
@@ -142,6 +142,26 @@ export default function App() {
     }
   };
 
+  const handleUpdateEvent = async (orderId, newStatus = 'change-requested') => {
+    try {
+      const updated = await api.orders.updateStatus(token, orderId, newStatus);
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updated } : o));
+      showToast(`Booking ${orderId} status updated to "${updated.statusLabel}"`);
+    } catch {
+      showToast('Failed to request change for booking.');
+    }
+  };
+
+  const handleCancelEvent = async (orderId) => {
+    try {
+      const updated = await api.orders.updateStatus(token, orderId, 'cancelled');
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updated } : o));
+      showToast(`Booking ${orderId} has been cancelled.`);
+    } catch {
+      showToast('Failed to cancel booking.');
+    }
+  };
+
   // ── Guard ──────────────────────────────────────────────────────
   if (!token || !currentUser) {
     return <Auth onLogin={handleLogin} />;
@@ -181,8 +201,8 @@ export default function App() {
             {activeTab === 'events' && (
               <MyEvents
                 events={events}
-                onUpdateEvent={() => {}}
-                onCancelEvent={() => {}}
+                onUpdateEvent={handleUpdateEvent}
+                onCancelEvent={handleCancelEvent}
                 showToast={showToast}
               />
             )}

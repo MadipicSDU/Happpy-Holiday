@@ -8,7 +8,7 @@ export default function VenueSchedule({ showToast }) {
   // Invoice generator state matching Figma values exactly
   const [clientName, setClientName] = useState('Sarah Jenkins');
   const [bookingRef, setBookingRef] = useState('HH-492318');
-  const [amount, setAmount] = useState('$1,800.00');
+  const [amount, setAmount] = useState('1,800 ₸');
   const [dueDate, setDueDate] = useState('Oct 24, 2025');
 
   // Invoice preview state
@@ -16,7 +16,7 @@ export default function VenueSchedule({ showToast }) {
     invNumber: '#INV-2025-082',
     venueTitle: 'The Crystal Greenhouse Booking',
     rentalSubtitle: '12 hours space rental · Sarah Jenkins',
-    totalDue: '$1,800.00'
+    totalDue: '1,800 ₸'
   });
 
   const handleGenerateInvoice = (e) => {
@@ -26,7 +26,7 @@ export default function VenueSchedule({ showToast }) {
       invNumber: invCode,
       venueTitle: bookingRef === 'HH-492318' ? 'Grand Ballroom Atrium Booking' : 'The Crystal Greenhouse Booking',
       rentalSubtitle: `12 hours space rental · ${clientName}`,
-      totalDue: amount.startsWith('$') ? amount : `$${amount}`
+      totalDue: amount.endsWith('₸') ? amount : `${amount} ₸`
     });
     showToast(`Invoice ${invCode} generated for ${clientName}!`);
   };
@@ -136,7 +136,7 @@ export default function VenueSchedule({ showToast }) {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label>Amount (USD)</label>
+                  <label>Amount (₸ / KZT)</label>
                   <input 
                     type="text" 
                     value={amount} 

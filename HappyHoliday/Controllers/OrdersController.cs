@@ -39,7 +39,7 @@ public class OrdersController(AppDbContext db) : ControllerBase
             eventDate   = o.EventDate.ToString("MMM dd, yyyy"),
             o.Status,
             statusLabel = StatusLabel(o.Status),
-            amount      = $"${o.TotalAmount:F2}",
+            amount      = $"{o.TotalAmount:N0} ₸",
             guests      = o.ExpectedGuests
         }));
     }
@@ -98,18 +98,30 @@ public class OrdersController(AppDbContext db) : ControllerBase
             eventDate   = order.EventDate.ToString("MMM dd, yyyy"),
             order.Status,
             statusLabel = StatusLabel(order.Status),
-            amount      = $"${order.TotalAmount:F2}",
+            amount      = $"{order.TotalAmount:N0} ₸",
             guests      = order.ExpectedGuests
         });
     }
 
-    // PATCH /api/orders/{id}/status — manager updates status
+    // PATCH /api/orders/{id}/status — client (cancel/change) or manager/admin
     [HttpPatch("{id}/status")]
-    [Authorize(Roles = $"{UserRoles.Manager},{UserRoles.Admin}")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateStatusDto dto)
     {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
+
         var order = await db.Orders.FindAsync(id);
         if (order == null) return NotFound();
+
+        if (role == UserRoles.Client)
+        {
+            if (!Guid.TryParse(userIdStr, out var userId) || order.ClientId != userId)
+                return Forbid();
+
+            if (dto.Status != "change-requested" && dto.Status != "cancelled")
+                return BadRequest("Clients may only request changes or cancel bookings.");
+        }
+
         order.Status = dto.Status;
         await db.SaveChangesAsync();
         return Ok(new { order.Id, order.Status, statusLabel = StatusLabel(order.Status) });
@@ -121,6 +133,7 @@ public class OrdersController(AppDbContext db) : ControllerBase
         "confirmed"         => "Confirmed",
         "change-requested"  => "Change Requested",
         "completed"         => "Completed",
+        "cancelled"         => "Cancelled",
         _                   => status
     };
 }
