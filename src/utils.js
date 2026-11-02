@@ -27,7 +27,7 @@ export function bookingPayload(venue, startsAt, endsAt, guests, quantities) {
 export const statusNames = { pending: 'Pending review', 'awaiting-payment': 'Awaiting payment', confirmed: 'Confirmed', 'change-requested': 'Change requested', completed: 'Completed', cancelled: 'Cancelled' };
 export const cancellable = order => ['pending', 'awaiting-payment'].includes(order.status);
 export const activeOrder = order => !['completed', 'cancelled'].includes(order.status);
-export const categoryName = value => ({ FoodPreparation: 'Food preparation', EquipmentRental: 'Equipment rental' }[value] || value);
+export { serviceCategoryName as categoryName } from './serviceCatalogue.js';
 export function nextOrder(orders, now = new Date()) {
   return orders.filter(order => activeOrder(order) && new Date(order.endsAt) > now)
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))[0];

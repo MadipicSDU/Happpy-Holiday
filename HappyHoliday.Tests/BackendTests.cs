@@ -12,6 +12,7 @@ using HappyHoliday.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Npgsql;
 
@@ -156,6 +157,28 @@ public sealed class BackendTests
     }
 
     [TestMethod]
+    public async Task DemoSeedingSupportsVenuesWithFewerThanFiftyGuests()
+    {
+        await using (var db = Database())
+        {
+            await db.Users.Where(u => u.Role == "client").ExecuteDeleteAsync();
+            var capacities = new[] { 1, 20, 30, 40, 45, 50 };
+            for (var i = 0; i < _premises.Length; i++)
+                (await db.Premises.FindAsync(_premises[i].Id))!.Capacity = capacities[i];
+            await db.SaveChangesAsync();
+        }
+        await using var provider = new ServiceCollection()
+            .AddDbContext<AppDbContext>(options => options.UseNpgsql(_connection))
+            .BuildServiceProvider();
+        var seeder = new DbSeeder(provider.GetRequiredService<IServiceScopeFactory>(), new PasswordHasher<AppUser>());
+        await seeder.StartAsync(CancellationToken.None);
+        await using var seeded = Database();
+        var orders = await seeded.Orders.Include(o => o.Premise).ToListAsync();
+        Assert.HasCount(6, orders);
+        Assert.IsTrue(orders.All(o => o.ExpectedGuests >= 1 && o.ExpectedGuests <= o.Premise!.Capacity));
+    }
+
+    [TestMethod]
     public async Task QuoteCreateSnapshotAndPrivacy()
     {
         using var http = Http(_clients[0]);
@@ -221,6 +244,80 @@ public sealed class BackendTests
         await Check(await http.PatchAsJsonAsync($"/api/orders/{firstId}/status", new { status = "cancelled" }), HttpStatusCode.OK);
         await Check(await http.PostAsJsonAsync("/api/orders", Request(3)), HttpStatusCode.Created);
         await Check(await http.PatchAsJsonAsync($"/api/orders/{firstId}/status", new { status = "confirmed" }), HttpStatusCode.Conflict);
+    }
+
+    [TestMethod]
+    public async Task CancellationRecordsAuthenticatedActorAndRetainsBookingDetails()
+    {
+        using var client = Http(_clients[0]);
+        using var admin = Http(_admin);
+        for (var i = 0; i < 3; i++)
+        {
+            var created = await client.PostAsJsonAsync("/api/orders", Request(i));
+            await Check(created, HttpStatusCode.Created);
+            var original = await Body(created);
+            Assert.AreEqual(JsonValueKind.Null, original.GetProperty("cancellation").ValueKind);
+            var id = original.GetProperty("id").GetString();
+            original = await Body(await client.GetAsync("/api/orders/" + id));
+            var assigned = _managers.Single(m => m.Id == original.GetProperty("managerId").GetGuid());
+            var actor = i switch { 0 => _clients[0], 1 => assigned, _ => _admin };
+            using var actorHttp = Http(actor);
+            using var otherClient = Http(_clients[1]);
+            using var unassigned = Http(_managers.Single(m => m.Id != assigned.Id));
+            await Check(await otherClient.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "cancelled" }), HttpStatusCode.NotFound);
+            await Check(await unassigned.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "cancelled" }), HttpStatusCode.NotFound);
+            var before = DateTime.UtcNow;
+            var response = await actorHttp.PatchAsJsonAsync($"/api/orders/{id}/status", new {
+                status = "cancelled", cancelledByUserId = _clients[1].Id, cancelledByName = "Spoofed actor", cancelledAt = "2020-01-01T00:00:00Z"
+            });
+            await Check(response, HttpStatusCode.OK);
+            var cancelled = await Body(response);
+            var audit = cancelled.GetProperty("cancellation");
+            Assert.AreEqual(actor.Id, audit.GetProperty("userId").GetGuid());
+            Assert.AreEqual(actor.DisplayName, audit.GetProperty("name").GetString());
+            Assert.AreEqual(actor.Role, audit.GetProperty("role").GetString());
+            Assert.IsTrue(audit.GetProperty("at").GetDateTime() >= before);
+            Assert.IsTrue(audit.GetProperty("at").GetDateTime() <= DateTime.UtcNow);
+            Assert.AreEqual("cancelled", cancelled.GetProperty("status").GetString());
+            Assert.AreEqual(original.GetProperty("pricing").GetRawText(), cancelled.GetProperty("pricing").GetRawText());
+            Assert.AreEqual(original.GetProperty("guests").GetInt32(), cancelled.GetProperty("guests").GetInt32());
+            Assert.AreEqual(original.GetProperty("client").GetString(), cancelled.GetProperty("client").GetString());
+            var retry = await Body(await admin.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "cancelled" }));
+            Assert.AreEqual(audit.GetRawText(), retry.GetProperty("cancellation").GetRawText());
+            await using (var db = Database())
+            {
+                (await db.Users.FindAsync(actor.Id))!.DisplayName = "Renamed after cancellation";
+                (await db.Premises.FindAsync(_premises[i].Id))!.Name = "Changed after cancellation";
+                await db.SaveChangesAsync();
+            }
+            var detail = await Body(await client.GetAsync("/api/orders/" + id));
+            Assert.AreEqual(audit.GetRawText(), detail.GetProperty("cancellation").GetRawText());
+            Assert.AreEqual(original.GetProperty("pricing").GetRawText(), detail.GetProperty("pricing").GetRawText());
+            using var managerHttp = Http(assigned);
+            Assert.AreEqual(audit.GetRawText(), (await Body(await managerHttp.GetAsync("/api/orders/" + id))).GetProperty("cancellation").GetRawText());
+            await Check(await otherClient.GetAsync("/api/orders/" + id), HttpStatusCode.NotFound);
+            var listed = (await Body(await admin.GetAsync("/api/orders"))).EnumerateArray().Single(o => o.GetProperty("id").GetString() == id);
+            Assert.AreEqual(audit.GetRawText(), listed.GetProperty("cancellation").GetRawText());
+        }
+    }
+
+    [TestMethod]
+    public async Task LegacyCancellationRemainsUnattributedOnRetry()
+    {
+        using var client = Http(_clients[0]);
+        var original = await Body(await client.PostAsJsonAsync("/api/orders", Request()));
+        var id = original.GetProperty("id").GetString();
+        original = await Body(await client.GetAsync("/api/orders/" + id));
+        await using (var db = Database())
+        {
+            (await db.Orders.SingleAsync(o => o.Id == id))!.Status = "cancelled";
+            await db.SaveChangesAsync();
+        }
+        var response = await client.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "cancelled" });
+        await Check(response, HttpStatusCode.OK);
+        var order = await Body(response);
+        Assert.AreEqual(JsonValueKind.Null, order.GetProperty("cancellation").ValueKind);
+        Assert.AreEqual(original.GetProperty("pricing").GetRawText(), order.GetProperty("pricing").GetRawText());
     }
 
     [TestMethod]
@@ -303,8 +400,11 @@ public sealed class BackendTests
         await Check(await client.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "confirmed" }), HttpStatusCode.BadRequest);
         using var manager = Http(_managers.Single(m => m.Id == order.GetProperty("managerId").GetGuid()));
         await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "garbage" }), HttpStatusCode.BadRequest);
-        await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "awaiting-payment" }), HttpStatusCode.OK);
-        await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "confirmed" }), HttpStatusCode.OK);
+        await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "awaiting-payment" }), HttpStatusCode.BadRequest);
+        await Check(await manager.PostAsync($"/api/orders/{id}/invoice", null), HttpStatusCode.OK);
+        await Check(await manager.PostAsync($"/api/orders/{id}/invoice/deliver", null), HttpStatusCode.OK);
+        await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "confirmed" }), HttpStatusCode.BadRequest);
+        await Check(await client.PostAsJsonAsync($"/api/orders/{id}/invoice/pay", new { idempotencyKey = Guid.NewGuid() }), HttpStatusCode.OK);
         await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "completed" }), HttpStatusCode.BadRequest);
         await Check(await manager.DeleteAsync("/api/users/" + _admin.Id), HttpStatusCode.Forbidden);
         using var admin = Http(_admin);
@@ -332,6 +432,119 @@ public sealed class BackendTests
         using var anonymous = Http();
         await Check(await anonymous.GetAsync("/api/orders"), HttpStatusCode.Unauthorized);
         await Check(await anonymous.GetAsync("/swagger/v1/swagger.json"), HttpStatusCode.OK);
+    }
+
+    [TestMethod]
+    public async Task ServiceCategoriesSearchSortAndSnapshots()
+    {
+        using var admin = Http(_admin);
+        using var client = Http(_clients[0]);
+        var selections = new List<object>();
+        var categories = new[] { "Decoration", "Entertainment", "Photography", "EventPlanning", "Staffing", "Transport", "Security", "Cleaning", "Accessibility support" };
+        foreach (var category in categories)
+        {
+            var created = await admin.PostAsJsonAsync("/api/services", new { name = "  Demo " + category + "  ", category = " " + category + " ", price = 20m, description = " Coverage per unit. " });
+            await Check(created, HttpStatusCode.Created);
+            var service = await Body(created);
+            Assert.AreEqual(category, service.GetProperty("category").GetString());
+            Assert.AreEqual("Demo " + category, service.GetProperty("name").GetString());
+            selections.Add(new { serviceId = service.GetProperty("id").GetGuid(), quantity = 2 });
+        }
+        using var anonymous = Http();
+        Assert.AreEqual(1, (await Body(await anonymous.GetAsync("/api/services?category=Entertainment&search=coverage&sort=price-desc"))).GetArrayLength());
+        var sorted = await Body(await anonymous.GetAsync("/api/services?sort=price-asc"));
+        var prices = sorted.EnumerateArray().Select(s => s.GetProperty("price").GetDecimal()).ToArray();
+        CollectionAssert.AreEqual(prices.Order().ToArray(), prices);
+        await Check(await anonymous.GetAsync("/api/services?sort=invalid"), HttpStatusCode.BadRequest);
+        await Check(await client.PostAsJsonAsync("/api/services", new { name = "Denied", category = "Custom", price = 5 }), HttpStatusCode.Forbidden);
+        await Check(await admin.PostAsJsonAsync("/api/services", new { name = " a ", category = "Custom", price = 5 }), HttpStatusCode.BadRequest);
+        var booked = await client.PostAsJsonAsync("/api/orders", new { premiseId = _premises[0].Id, startsAt = _start, endsAt = _start.AddHours(1), guests = 50, services = selections });
+        await Check(booked, HttpStatusCode.Created);
+        var lines = (await Body(booked)).GetProperty("pricing").GetProperty("services");
+        Assert.AreEqual(categories.Length, lines.GetArrayLength());
+        foreach (var line in lines.EnumerateArray()) Assert.AreEqual(40m, line.GetProperty("amount").GetDecimal());
+    }
+
+    [TestMethod]
+    public async Task InvoiceDeliveryPaymentPrivacyAndIdempotency()
+    {
+        using var client = Http(_clients[0]);
+        var order = await Body(await client.PostAsJsonAsync("/api/orders", Request()));
+        var id = order.GetProperty("id").GetString();
+        using var manager = Http(_managers.Single(m => m.Id == order.GetProperty("managerId").GetGuid()));
+        using var otherManager = Http(_managers.Single(m => m.Id != order.GetProperty("managerId").GetGuid()));
+        using var otherClient = Http(_clients[1]);
+        var path = $"/api/orders/{id}/invoice";
+        await Check(await client.PostAsync(path, null), HttpStatusCode.Forbidden);
+        await Check(await otherManager.PostAsync(path, null), HttpStatusCode.NotFound);
+        var draft = await manager.PostAsync(path, null); await Check(draft, HttpStatusCode.OK);
+        var invoice = await Body(draft);
+        Assert.AreEqual("draft", invoice.GetProperty("status").GetString());
+        Assert.AreEqual(180.77m, invoice.GetProperty("totalAmount").GetDecimal());
+        Assert.AreEqual(invoice.GetProperty("id").GetGuid(), (await Body(await manager.PostAsync(path, null))).GetProperty("id").GetGuid());
+        await Check(await client.GetAsync(path), HttpStatusCode.NotFound);
+        await Check(await client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = Guid.NewGuid() }), HttpStatusCode.NotFound);
+        await Check(await manager.PostAsync(path + "/deliver", null), HttpStatusCode.OK);
+        await Check(await otherClient.GetAsync(path), HttpStatusCode.NotFound);
+        await Check(await otherManager.GetAsync(path), HttpStatusCode.NotFound);
+        await Check(await client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = Guid.NewGuid(), outcome = "declined" }), HttpStatusCode.PaymentRequired);
+        Assert.AreEqual("awaiting-payment", (await Body(await client.GetAsync("/api/orders/" + id))).GetProperty("status").GetString());
+        var key = Guid.NewGuid();
+        var replies = await Task.WhenAll(client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = key, amount = 0 }),
+            client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = key, amount = 0 }));
+        foreach (var response in replies) await Check(response, HttpStatusCode.OK);
+        var paid = await Body(replies[0]);
+        Assert.AreEqual("paid", paid.GetProperty("status").GetString());
+        Assert.AreEqual(180.77m, paid.GetProperty("receipt").GetProperty("amount").GetDecimal());
+        Assert.IsTrue(paid.GetProperty("receipt").GetProperty("isDemo").GetBoolean());
+        Assert.AreEqual("confirmed", (await Body(await client.GetAsync("/api/orders/" + id))).GetProperty("status").GetString());
+        await Check(await client.PatchAsJsonAsync("/api/orders/" + id + "/status", new { status = "cancelled" }), HttpStatusCode.BadRequest);
+        await using var db = Database();
+        Assert.AreEqual(1, await db.Payments.CountAsync());
+        Assert.AreEqual(1, await db.Invoices.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task CancelledInvoicesCannotBePaidAndConflictsBlockIssuing()
+    {
+        using var client = Http(_clients[0]); using var admin = Http(_admin);
+        var order = await Body(await client.PostAsJsonAsync("/api/orders", Request()));
+        var id = order.GetProperty("id").GetString(); var path = $"/api/orders/{id}/invoice";
+        await Check(await admin.PostAsync(path, null), HttpStatusCode.OK);
+        await Check(await admin.PostAsync(path + "/deliver", null), HttpStatusCode.OK);
+        await Check(await client.PatchAsJsonAsync("/api/orders/" + id + "/status", new { status = "cancelled" }), HttpStatusCode.OK);
+        Assert.AreEqual("void", (await Body(await client.GetAsync(path))).GetProperty("status").GetString());
+        await Check(await client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = Guid.NewGuid() }), HttpStatusCode.Conflict);
+        var second = await Body(await client.PostAsJsonAsync("/api/orders", Request()));
+        var secondId = second.GetProperty("id").GetString();
+        await using var db = Database();
+        db.Orders.Add(new Order { ClientId = _clients[1].Id, PremiseId = _premises[0].Id,
+            EventDate = _start.UtcDateTime, EndDate = _start.AddHours(1).UtcDateTime, ExpectedGuests = 1 });
+        await db.SaveChangesAsync();
+        await Check(await admin.PostAsync($"/api/orders/{secondId}/invoice", null), HttpStatusCode.Conflict);
+    }
+
+    [TestMethod]
+    public async Task AlternativesPromotionsAndFrozenInvoiceRates()
+    {
+        using var client = Http(_clients[0]); using var admin = Http(_admin);
+        await using (var db = Database()) { var venue = await db.Premises.FindAsync(_premises[1].Id); venue!.PromotionPercent = 10; await db.SaveChangesAsync(); }
+        await Check(await client.PostAsJsonAsync("/api/orders", Request()), HttpStatusCode.Created);
+        var suggestions = await Body(await admin.PostAsJsonAsync("/api/premises/alternatives", new { premiseId = _premises[0].Id, startsAt = _start, endsAt = _start.AddHours(1), guests = 50 }));
+        Assert.IsFalse(suggestions.GetProperty("requestedAvailable").GetBoolean());
+        var alternatives = suggestions.GetProperty("alternatives");
+        Assert.AreEqual(5, alternatives.GetArrayLength());
+        Assert.AreEqual(_premises[1].Id, alternatives[0].GetProperty("id").GetGuid());
+        Assert.AreEqual(90.01m, alternatives[0].GetProperty("rentalAmount").GetDecimal());
+        var quote = await Body(await client.PostAsJsonAsync("/api/orders/quote", Request(1)));
+        Assert.AreEqual(15m, quote.GetProperty("rentalDiscount").GetDecimal());
+        Assert.AreEqual(165.77m, quote.GetProperty("totalAmount").GetDecimal());
+        var booked = await Body(await client.PostAsJsonAsync("/api/orders", Request(1)));
+        var id = booked.GetProperty("id").GetString(); var path = $"/api/orders/{id}/invoice";
+        var snapshot = await Body(await admin.PostAsync(path, null));
+        await using (var db = Database()) { var venue = await db.Premises.FindAsync(_premises[1].Id); venue!.PricePerHour = 999; venue.PromotionPercent = 0; await db.SaveChangesAsync(); }
+        Assert.AreEqual(165.77m, (await Body(await admin.GetAsync(path))).GetProperty("totalAmount").GetDecimal());
+        Assert.AreEqual(snapshot.GetProperty("number").GetString(), (await Body(await admin.GetAsync(path))).GetProperty("number").GetString());
     }
 
     [TestMethod]

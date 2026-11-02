@@ -10,6 +10,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<EventService> EventServices => Set<EventService>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderService> OrderServices => Set<OrderService>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<Payment> Payments => Set<Payment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,9 +51,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         order.ToTable("orders");
         order.HasKey(item => item.Id);
         order.Property(item => item.Status).HasMaxLength(50).IsRequired();
+        order.Property(item => item.CancelledByName).HasMaxLength(100);
+        order.Property(item => item.CancelledByRole).HasMaxLength(20);
         order.Property(item => item.TotalAmount).HasColumnType("decimal(18,2)").IsRequired();
         order.Property(item => item.RentalRate).HasPrecision(18, 2);
         order.Property(item => item.RentalAmount).HasPrecision(18, 2);
+        order.Property(item => item.RentalDiscount).HasPrecision(18, 2);
+        order.Property(item => item.PromotionPercent).HasPrecision(5, 2);
+        premise.Property(item => item.PromotionPercent).HasPrecision(5, 2);
         order.HasIndex(item => new { item.PremiseId, item.EventDate, item.EndDate });
         order.HasOne(item => item.Client).WithMany().HasForeignKey(item => item.ClientId).OnDelete(DeleteBehavior.Restrict);
         order.HasOne(item => item.Manager).WithMany().HasForeignKey(item => item.ManagerId).OnDelete(DeleteBehavior.Restrict);
@@ -64,5 +71,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         orderService.Property(item => item.Amount).HasPrecision(18, 2);
         orderService.HasOne(item => item.EventService).WithMany().HasForeignKey(item => item.EventServiceId).OnDelete(DeleteBehavior.Restrict);
         orderService.HasIndex(item => new { item.OrderId, item.EventServiceId }).IsUnique();
+
+        var invoice = modelBuilder.Entity<Invoice>();
+        invoice.ToTable("invoices");
+        invoice.HasIndex(i => i.OrderId).IsUnique();
+        invoice.HasIndex(i => i.Number).IsUnique();
+        invoice.Property(i => i.TotalAmount).HasPrecision(18, 2);
+        invoice.Property(i => i.ClientName).HasMaxLength(100);
+        invoice.Property(i => i.ClientEmail).HasMaxLength(254);
+        invoice.HasOne(i => i.Order).WithMany().HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Restrict);
+        var payment = modelBuilder.Entity<Payment>();
+        payment.ToTable("payments");
+        payment.Property(p => p.Amount).HasPrecision(18, 2);
+        payment.HasIndex(p => p.InvoiceId).IsUnique();
+        payment.HasIndex(p => p.IdempotencyKey).IsUnique();
+        payment.HasIndex(p => p.Reference).IsUnique();
+        payment.HasOne(p => p.Invoice).WithMany().HasForeignKey(p => p.InvoiceId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -19,10 +19,21 @@ public sealed record ServiceSelection(Guid ServiceId, [Range(1, 100000)] int Qua
 public sealed record PriceLine(Guid Id, string Name, string Category, decimal UnitPrice, decimal Quantity, decimal Amount);
 public sealed record OrderQuote(Guid PremiseId, string PremiseName, string Address, DateTime StartsAt,
     DateTime EndsAt, decimal DurationHours, PriceLine Rental, IReadOnlyList<PriceLine> Services, decimal TotalAmount,
-    string Currency = "KZT", bool LegacyEstimate = false);
+    string Currency = "KZT", bool LegacyEstimate = false, decimal RentalDiscount = 0, decimal PromotionPercent = 0);
+
+public sealed record PayInvoiceDto(Guid IdempotencyKey, string Outcome = "success");
+public sealed class AvailabilityDto
+{
+    public Guid PremiseId { get; init; }
+    public DateTimeOffset StartsAt { get; init; }
+    public DateTimeOffset EndsAt { get; init; }
+    [Range(1, 100000)] public int Guests { get; init; }
+    public string? OrderId { get; init; }
+}
 public sealed record OrderResponse(string Id, Guid ClientId, string? Client, Guid? ManagerId, Guid PremiseId,
     string Venue, string Address, string EventDate, DateTime StartsAt, DateTime EndsAt, string Status,
-    string StatusLabel, string Amount, decimal TotalAmount, int Guests, OrderQuote Pricing);
+    string StatusLabel, string Amount, decimal TotalAmount, int Guests, OrderQuote Pricing, OrderCancellation? Cancellation = null);
+public sealed record OrderCancellation(Guid UserId, string Name, string Role, DateTime At);
 public sealed record UpdateStatusDto([Required] string Status);
 
 public sealed class UpdateProfileDto

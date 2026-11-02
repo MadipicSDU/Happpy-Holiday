@@ -91,6 +91,7 @@ export default function App() {
     const updated = await api.orders.updateStatus(token, id, 'cancelled');
     setData(previous => ({ ...previous, orders: previous.orders.map(order => order.id === id ? { ...order, ...updated } : order) }));
     showToast('Booking cancelled. The venue has been released.');
+    return updated;
   };
   const saveProfile = async body => {
     const profile = await api.users.saveProfile(token, body);
@@ -109,9 +110,9 @@ export default function App() {
         <ErrorNotice message={error ? `${error} Showing the last loaded data.` : ''} onRetry={refresh} />
         {client && activeTab === 'home' && <Home currentUser={user} orders={data.orders} onNavigate={navigate} />}
         {client && activeTab === 'spaces' && <BrowseSpaces venues={data.venues} availableServices={data.services} token={token} orders={data.orders} onBookSpace={book} />}
-        {client && activeTab === 'events' && <MyEvents orders={data.orders} onCancel={cancel} onNavigate={navigate} />}
+        {client && activeTab === 'events' && <MyEvents orders={data.orders} onCancel={cancel} onNavigate={navigate} token={token} onRefresh={refresh} />}
         {client && activeTab === 'profile' && <Profile user={user} onSave={saveProfile} />}
-        {!client && activeTab === 'orders' && <OrderQueue orders={data.orders} onCancel={cancel} isAdmin={user.role === 'admin'} />}
+        {!client && activeTab === 'orders' && <OrderQueue orders={data.orders} onCancel={cancel} isAdmin={user.role === 'admin'} token={token} onRefresh={refresh} />}
         {!client && activeTab === 'clients' && <MyClients clients={data.clients} showToast={showToast} isAdmin={user.role === 'admin'} />}
         {!client && activeTab === 'schedule' && <VenueSchedule token={token} refreshVersion={version} />}
         {!client && activeTab === 'analytics' && <Analytics orders={data.orders} venues={data.venues} isAdmin={user.role === 'admin'} />}

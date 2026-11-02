@@ -1,0 +1,44 @@
+[
+  {
+    "key": "ballroom",
+    "photographer": "Lucas T Photography",
+    "source": "https://unsplash.com/photos/luxurious-ballroom-with-chandeliers-and-white-tables-set-for-event-cWWuX8wCKdA",
+    "imageUrl": "https://images.unsplash.com/photo-1780593116478-c46838f86523?auto=format&fit=crop&w=1200&q=80",
+    "license": "https://unsplash.com/license"
+  },
+  {
+    "key": "banquet",
+    "photographer": "Manya Sivanandam",
+    "source": "https://unsplash.com/photos/elegant-ballroom-with-numerous-tables-prepared-for-a-formal-event-qePRtRzOUf0",
+    "imageUrl": "https://images.unsplash.com/photo-1783314867628-220ab03cac99?auto=format&fit=crop&w=1200&q=80",
+    "license": "https://unsplash.com/license"
+  },
+  {
+    "key": "hall",
+    "photographer": "yanzheng xia",
+    "source": "https://unsplash.com/photos/empty-hall-with-brick-walls-and-patterned-carpet-3S1AgG4Mq-g",
+    "imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80",
+    "license": "https://unsplash.com/license"
+  },
+  {
+    "key": "meeting",
+    "photographer": "Kin Shing Lai",
+    "source": "https://unsplash.com/photos/empty-conference-room-with-chairs-arranged-in-a-circle-Bx7nJG0x6xo",
+    "imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80",
+    "license": "https://unsplash.com/license"
+  },
+  {
+    "key": "garden",
+    "photographer": "Sreej Pradhan",
+    "source": "https://unsplash.com/photos/the-garden-restaurant-exterior-with-outdoor-seating-IGIS0cbtgdk",
+    "imageUrl": "https://images.unsplash.com/photo-1783522332339-0e9ccef91c5d?auto=format&fit=crop&w=1200&q=80",
+    "license": "https://unsplash.com/license"
+  },
+  {
+    "key": "terrace",
+    "photographer": "Unsplash contributor",
+    "source": "https://unsplash.com/photos/an-outdoor-dining-area-with-tables-and-chairs-9S_9IVeEzrU",
+    "imageUrl": "https://images.unsplash.com/photo-1643856557143-09189e523fd6?auto=format&fit=crop&w=1200&q=80",
+    "license": "https://unsplash.com/license"
+  }
+]

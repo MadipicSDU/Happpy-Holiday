@@ -28,10 +28,16 @@ public class Order
     public string PremiseAddress { get; set; } = string.Empty;
     public decimal RentalRate { get; set; }
     public decimal RentalAmount { get; set; }
+    public decimal RentalDiscount { get; set; }
+    public decimal PromotionPercent { get; set; }
     public bool LegacyEstimate { get; set; }
     public int ExpectedGuests { get; set; }
 
     public string Status { get; set; } = "pending";
+    public DateTime? CancelledAt { get; set; }
+    public Guid? CancelledByUserId { get; set; }
+    public string? CancelledByName { get; set; }
+    public string? CancelledByRole { get; set; }
 
     public decimal TotalAmount { get; set; }
 

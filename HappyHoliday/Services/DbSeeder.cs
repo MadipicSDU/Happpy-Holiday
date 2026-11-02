@@ -19,15 +19,7 @@ public sealed class DbSeeder(
         // ── Premises ────────────────────────────────────────────────
         if (!await db.Premises.AnyAsync(cancellationToken))
         {
-            var premises = new List<Premise>
-            {
-                new() { Name = "Grand Ballroom Atrium",      Address = "123 Main St",       Description = "Opulent chandelier hall with double-height ceiling and bespoke banquet tables.",                    Capacity = 250, PricePerHour = 2400 },
-                new() { Name = "The Crystal Greenhouse",     Address = "456 Garden Blvd",   Description = "Lush enclosed garden under vintage iron glass arches with warm string lighting.",                  Capacity = 160, PricePerHour = 1800 },
-                new() { Name = "The Warehouse Atrium",       Address = "789 Industry Way",  Description = "Polished concrete floors, exposed brick accents and flexible modular stage architecture.",         Capacity = 220, PricePerHour = 1500 },
-                new() { Name = "Whispering Pines Lodge",     Address = "101 Mountain Rd",   Description = "Warm timber interiors with grand stone fireplace and panoramic mountain views.",                   Capacity = 120, PricePerHour = 1950 },
-                new() { Name = "Horizon Skyline Terrace",    Address = "202 Rooftop Ave",   Description = "High-altitude open sky lounge with illuminated city skyline backdrop and modern cocktail bar.",    Capacity = 150, PricePerHour = 2200 },
-                new() { Name = "Metropolitan Symphony Hall", Address = "303 Arts St",       Description = "Historic auditorium crafted with pristine acoustics and concert-grade AV system.",                 Capacity = 350, PricePerHour = 3200 },
-            };
+            var premises = DemoVenues.Create();
             db.Premises.AddRange(premises);
             await db.SaveChangesAsync(cancellationToken);
         }
@@ -39,7 +31,15 @@ public sealed class DbSeeder(
                 new EventService { Name = "Premium Catering Package",   Category = "FoodPreparation",  Description = "3-course meal with champagne reception",     Price = 150 },
                 new EventService { Name = "Standard Buffet",            Category = "FoodPreparation",  Description = "Buffet-style catering for up to 200 guests", Price = 80  },
                 new EventService { Name = "Standard A/V Equipment",     Category = "EquipmentRental",  Description = "Projector, screen, and 2 wireless mics",     Price = 300 },
-                new EventService { Name = "Stage & Lighting Rig",       Category = "EquipmentRental",  Description = "Full LED stage lighting + follow spot",      Price = 550 }
+                new EventService { Name = "Stage & Lighting Rig",       Category = "EquipmentRental",  Description = "One stage lighting package per event.",      Price = 550 },
+                new EventService { Name = "Floral Table Centrepiece", Category = "Decoration", Description = "One floral arrangement for one table.", Price = 120 },
+                new EventService { Name = "DJ Performance", Category = "Entertainment", Description = "One hour of DJ performance. Enter the number of hours required.", Price = 400 },
+                new EventService { Name = "Event Photography", Category = "Photography", Description = "One hour of photography coverage and edited digital images.", Price = 350 },
+                new EventService { Name = "Event Coordinator", Category = "EventPlanning", Description = "One coordinator for one hour of on-site event support.", Price = 200 },
+                new EventService { Name = "Guest Welcome Host", Category = "Staffing", Description = "One host for one hour of guest check-in and welcome support.", Price = 100 },
+                new EventService { Name = "Guest Shuttle Transfer", Category = "Transport", Description = "One shuttle trip for up to 12 guests. Coordinate route and timing with your manager.", Price = 300 },
+                new EventService { Name = "Event Security Officer", Category = "Security", Description = "One security officer for one hour of event coverage.", Price = 150 },
+                new EventService { Name = "Post-event Cleanup", Category = "Cleaning", Description = "One standard venue cleanup package per event.", Price = 250 }
             );
             await db.SaveChangesAsync(cancellationToken);
         }
@@ -94,7 +94,7 @@ public sealed class DbSeeder(
                     PremiseAddress = premise.Address,
                     RentalRate     = premise.PricePerHour,
                     RentalAmount   = premise.PricePerHour * hours,
-                    ExpectedGuests = random.Next(50, premise.Capacity),
+                    ExpectedGuests = random.Next(Math.Min(50, premise.Capacity), premise.Capacity + 1),
                     Status         = statuses[i % statuses.Length],
                     TotalAmount    = premise.PricePerHour * hours,
                     ManagerId      = await db.Users.Where(u => u.Role == UserRoles.Manager).Select(u => (Guid?)u.Id).FirstOrDefaultAsync(cancellationToken)

@@ -62,8 +62,9 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
         var rentalRate = BookingRules.Money(premise.PricePerHour);
         var rental = new PriceLine(premise.Id, premise.Name, "PremiseRental", rentalRate, hours,
             BookingRules.Money(rentalRate * hours));
+        var discount = BookingRules.Money(rental.Amount * premise.PromotionPercent / 100m);
         return new OrderQuote(premise.Id, premise.Name, premise.Address, start, end, hours, rental, lines,
-            rental.Amount + lines.Sum(s => s.Amount));
+            rental.Amount - discount + lines.Sum(s => s.Amount), RentalDiscount: discount, PromotionPercent: premise.PromotionPercent);
     }
 
     public async Task<Order> CreateAsync(Guid clientId, CreateOrderDto dto, CancellationToken ct)
@@ -87,6 +88,7 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
             EventDate = quote.StartsAt, EndDate = quote.EndsAt, ExpectedGuests = dto.Guests,
             PremiseName = quote.PremiseName, PremiseAddress = quote.Address,
             RentalRate = quote.Rental.UnitPrice, RentalAmount = quote.Rental.Amount, TotalAmount = quote.TotalAmount,
+            RentalDiscount = quote.RentalDiscount, PromotionPercent = quote.PromotionPercent,
             OrderServices = quote.Services.Select(s => new OrderService
             {
                 EventServiceId = s.Id, Name = s.Name, Category = s.Category,
@@ -106,13 +108,17 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
         var services = order.OrderServices.Select(s => new PriceLine(s.EventServiceId, s.Name, s.Category,
             s.UnitPrice, s.Quantity, s.Amount)).ToList();
         var pricing = new OrderQuote(order.PremiseId, order.PremiseName, order.PremiseAddress,
-            order.EventDate, order.EndDate, hours, rental, services, order.TotalAmount, LegacyEstimate: order.LegacyEstimate);
+            order.EventDate, order.EndDate, hours, rental, services, order.TotalAmount, LegacyEstimate: order.LegacyEstimate,
+            RentalDiscount: order.RentalDiscount, PromotionPercent: order.PromotionPercent);
         return new OrderResponse(order.Id, order.ClientId, order.Client?.DisplayName, order.ManagerId,
             order.PremiseId, order.PremiseName, order.PremiseAddress,
             order.EventDate.ToString("MMM dd, yyyy", System.Globalization.CultureInfo.InvariantCulture),
             order.EventDate, order.EndDate, order.Status, StatusLabel(order.Status),
             order.TotalAmount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) + " ₸",
-            order.TotalAmount, order.ExpectedGuests, pricing);
+            order.TotalAmount, order.ExpectedGuests, pricing,
+            order.CancelledAt is { } cancelledAt && order.CancelledByUserId is { } cancelledById
+                ? new OrderCancellation(cancelledById, order.CancelledByName ?? "Name unavailable", order.CancelledByRole ?? "", cancelledAt)
+                : null);
     }
     public static string StatusLabel(string status) => status switch
     {

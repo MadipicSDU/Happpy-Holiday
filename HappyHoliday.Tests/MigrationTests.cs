@@ -47,10 +47,16 @@ public sealed class MigrationTests
             Assert.AreEqual(456.78m, order.RentalAmount);
             Assert.AreEqual(TimeSpan.FromHours(4), order.EndDate - order.EventDate);
             Assert.IsTrue(order.LegacyEstimate);
+            Assert.IsNull(order.CancelledAt);
+            Assert.IsNull(order.CancelledByUserId);
+            Assert.IsNull(order.CancelledByName);
+            Assert.IsNull(order.CancelledByRole);
             Assert.AreEqual("Legacy hall", order.PremiseName);
             Assert.AreEqual("+77001234567", (await db.Users.SingleAsync()).Phone);
             Assert.AreEqual(10, (await db.Users.SingleAsync()).ClientLimit);
-            Assert.AreEqual(4, (await db.Database.GetAppliedMigrationsAsync()).Count());
+            Assert.AreEqual(db.Database.GetMigrations().Count(), (await db.Database.GetAppliedMigrationsAsync()).Count());
+            Assert.AreEqual(0, await db.Invoices.CountAsync());
+            Assert.AreEqual(0, await db.Payments.CountAsync());
             Assert.IsFalse(db.Database.HasPendingModelChanges());
             // Baseline is intentionally not idempotent after migrations have been recorded.
             await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(baseline));

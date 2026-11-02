@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bookingPayload, nextOrder, cancellable, activeOrder } from '../src/utils.js';
-import { request, ApiError } from '../src/services/api.js';
+import { request, ApiError, api } from '../src/services/api.js';
 import { pageWindow } from '../src/usePagination.js';
+import { filterServices, serviceCategoryName } from '../src/serviceCatalogue.js';
+import { bookingEstimate } from '../src/bookingEstimate.js';
+import { demoCardExample, formatDemoCardNumber, formatDemoExpiry, validateDemoPayment } from '../src/demoPayment.js';
 
 const venue = { id: 'venue-one', capacity: 100 };
 const year = new Date().getFullYear() + 1;
@@ -29,6 +32,38 @@ test('invalid dates, capacity, and service quantities cannot reach the quote API
 
 test('optional services remain optional', () => {
   assert.deepEqual(bookingPayload(venue, start, end, 50, {}).services, []);
+});
+
+test('live receipt rounds fractional rental and promotion in cents and includes service quantities', () => {
+  const receiptVenue = { ...venue, name: 'Test venue', pricePerHour: 100.01, promotionPercent: 10 };
+  const services = [{ id: 'catering', name: 'Catering', price: 10.25, category: 'FoodPreparation' }];
+  const quantities = { catering: '3' };
+  const receipt = bookingEstimate({ venue: receiptVenue, services, startsAt: `${year}-01-03T23:00`, endsAt: `${year}-01-04T00:30`, guests: 80, quantities });
+  assert.equal(receipt.issue, '');
+  assert.equal(receipt.pricing.durationHours, 1.5);
+  assert.equal(receipt.pricing.rental.amount, 150.02);
+  assert.equal(receipt.pricing.rentalDiscount, 15);
+  assert.equal(receipt.pricing.services[0].amount, 30.75);
+  assert.equal(receipt.pricing.totalAmount, 165.77);
+  assert.deepEqual(quantities, { catering: '3' });
+  const oneMinute = bookingEstimate({ venue: receiptVenue, services: [], startsAt: `${year}-01-03T23:00`, endsAt: `${year}-01-03T23:01`, guests: 1, quantities: {} });
+  assert.equal(oneMinute.pricing.rental.amount, 1.67);
+  assert.equal(oneMinute.pricing.rentalDiscount, 0.17);
+  assert.equal(oneMinute.pricing.totalAmount, 1.5);
+});
+
+test('live receipt withholds a total for incomplete dates, invalid quantities, capacity, or removed services', () => {
+  const input = { venue: { ...venue, pricePerHour: 125.5 }, services: [{ id: 'music', price: 10 }], startsAt: start, endsAt: end, guests: 50, quantities: {} };
+  for (const changes of [{ startsAt: '' }, { endsAt: start }, { guests: 101 }, { quantities: { music: '' } }, { quantities: { music: 100001 } }, { quantities: { removed: 1 } }]) {
+    const receipt = bookingEstimate({ ...input, ...changes });
+    assert.ok(receipt.issue);
+    assert.equal(receipt.pricing.totalAmount, null);
+  }
+  const empty = bookingEstimate({ ...input, startsAt: '', endsAt: '' });
+  assert.equal(empty.pricing.rental.amount, null);
+  assert.deepEqual(empty.pricing.services, []);
+  const maximum = bookingEstimate({ ...input, quantities: { music: 100000 } });
+  assert.equal(maximum.pricing.totalAmount, 1000313.75);
 });
 
 test('next reservation is chronological and excludes cancelled, completed, and ended orders', () => {
@@ -158,4 +193,69 @@ test('pagination covers every record exactly once and clamps after filters or de
   assert.equal(filtered.items[0].id, 25);
   assert.deepEqual(pageWindow([], 80, 25).items, []);
   assert.equal(pageWindow([], 80, 25).page, 1);
+});
+
+test('service discovery combines categories, descriptions, sorting and persistent selections', () => {
+  const services = [
+    { id: 'food', name: 'Buffet', category: 'FoodPreparation', description: 'Vegetarian servings', price: 80 },
+    { id: 'music', name: 'DJ', category: 'Entertainment', description: 'Evening party', price: 500 },
+    { id: 'custom', name: 'Quiet room', category: 'Accessibility', description: null, price: 0 },
+  ];
+  const quantities = { music: 2, food: 80 };
+  assert.deepEqual(filterServices(services, { search: ' catering ' }).map(s => s.id), ['food']);
+  assert.deepEqual(filterServices(services, { search: 'vegetarian' }).map(s => s.id), ['food']);
+  assert.deepEqual(filterServices(services, { category: 'Entertainment', quantities }).map(s => s.id), ['music']);
+  assert.deepEqual(filterServices(services, { selectedOnly: true, quantities, sort: 'price-desc' }).map(s => s.id), ['music', 'food']);
+  assert.deepEqual(filterServices(services, { sort: 'price-asc' }).map(s => s.id), ['custom', 'food', 'music']);
+  assert.equal(serviceCategoryName('Accessibility'), 'Accessibility');
+  assert.deepEqual(quantities, { music: 2, food: 80 });
+  assert.deepEqual(services.map(s => s.id), ['food', 'music', 'custom']);
+});
+
+test('invoice lifecycle uses scoped routes and repeats payment keys without sending a client amount', async () => {
+  const previous = globalThis.fetch;
+  const calls = [];
+  try {
+    globalThis.fetch = async (url, options) => { calls.push({ url, ...options }); return new Response(JSON.stringify({ status: 'issued' })); };
+    await api.invoices.get('demo-token', 'order/one');
+    await api.invoices.generate('demo-token', 'order/one');
+    await api.invoices.deliver('demo-token', 'order/one');
+    await api.invoices.pay('demo-token', 'order/one', 'same-key', 'declined');
+    await api.invoices.pay('demo-token', 'order/one', 'same-key', 'success');
+    assert.ok(calls[0].url.endsWith('/orders/order%2Fone/invoice'));
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'POST', 'POST', 'POST', 'POST']);
+    assert.deepEqual(JSON.parse(calls[3].body), { idempotencyKey: 'same-key', outcome: 'declined' });
+    assert.deepEqual(JSON.parse(calls[4].body), { idempotencyKey: 'same-key', outcome: 'success' });
+    assert.equal(calls[4].headers.Authorization, 'Bearer demo-token');
+    assert.equal(Object.hasOwn(JSON.parse(calls[4].body), 'amount'), false);
+  } finally { globalThis.fetch = previous; }
+});
+
+test('demo checkout formats test cards and validates successful and declined samples', () => {
+  const now = new Date(2026, 9, 27);
+  assert.equal(formatDemoCardNumber('4242424242424242'), '4242 4242 4242 4242');
+  assert.equal(formatDemoExpiry('1127'), '11/27');
+  for (const outcome of ['success', 'declined']) {
+    const details = demoCardExample(outcome, now);
+    assert.deepEqual(validateDemoPayment(details, now), { errors: {}, outcome });
+  }
+  const currentMonth = { ...demoCardExample('success', now), expiry: '10/26' };
+  assert.equal(validateDemoPayment(currentMonth, now).outcome, 'success');
+});
+
+test('demo checkout rejects incomplete details, expired dates, and cards outside the demo allowlist', () => {
+  const now = new Date(2026, 9, 27), details = demoCardExample('success', now);
+  const empty = validateDemoPayment({ cardholderName: '', cardNumber: '', expiry: '', securityCode: '' }, now);
+  assert.deepEqual(Object.keys(empty.errors), ['cardholderName', 'cardNumber', 'expiry', 'securityCode']);
+  assert.equal(empty.outcome, null);
+  for (const [field, values] of Object.entries({ cardholderName: [' ', 'A', 'a'.repeat(101)],
+    cardNumber: ['4111 1111 1111 1111', '4242 4242 4242', '4242 4242 4242 42421'],
+    expiry: ['09/26', '12/25', '00/27', '13/27', '1027'], securityCode: ['12', '1234', 'a12'] })) {
+    for (const value of values) {
+      const result = validateDemoPayment({ ...details, [field]: value }, now);
+      assert.ok(result.errors[field], field);
+      assert.equal(result.outcome, null);
+    }
+  }
+  assert.equal(validateDemoPayment({ ...details, cardholderName: 'a'.repeat(100) }, now).outcome, 'success');
 });

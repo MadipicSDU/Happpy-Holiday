@@ -47,10 +47,10 @@ public sealed class OrdersController(AppDbContext db, OrderingService ordering, 
     public async Task<IActionResult> UpdateStatus(string id, UpdateStatusDto dto, CancellationToken ct)
     {
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
-        var order = await db.Orders.SingleOrDefaultAsync(o => o.Id == id, ct);
+        var order = await db.Orders.Include(o => o.Client).Include(o => o.OrderServices).SingleOrDefaultAsync(o => o.Id == id, ct);
         if (order is null || (User.IsInRole(UserRoles.Client) && order.ClientId != UserId)
             || (User.IsInRole(UserRoles.Manager) && order.ManagerId != UserId)) return NotFound();
-        if (order.Status == dto.Status) return Ok(new { order.Id, order.Status, statusLabel = OrderingService.StatusLabel(order.Status) });
+        if (order.Status == dto.Status) return Ok(OrderingService.ToResponse(order));
         if (!BookingRules.IsActive(order.Status)) return Conflict(new ProblemDetails { Detail = "Terminal orders cannot change status." });
         if (User.IsInRole(UserRoles.Client))
         {
@@ -61,8 +61,7 @@ public sealed class OrdersController(AppDbContext db, OrderingService ordering, 
         {
             var allowed = (order.Status, dto.Status) switch
             {
-                ("pending", "awaiting-payment") => true,
-                ("awaiting-payment", "confirmed") => true,
+                // Invoice delivery and recorded payment own these financial transitions.
                 ("confirmed", "completed") => order.EndDate <= clock.GetUtcNow().UtcDateTime,
                 (_, "cancelled") => order.Status is "pending" or "awaiting-payment",
                 _ => false
@@ -70,8 +69,21 @@ public sealed class OrdersController(AppDbContext db, OrderingService ordering, 
             if (!allowed) return BadRequest(new ProblemDetails { Detail = "Invalid order status transition." });
         }
         order.Status = dto.Status;
+        if (dto.Status == "cancelled")
+        {
+            var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == UserId, ct);
+            if (actor is null) return Unauthorized();
+            var cancelledAt = clock.GetUtcNow().UtcDateTime;
+            // Match PostgreSQL microsecond precision on the initial response and later reads.
+            order.CancelledAt = cancelledAt.AddTicks(-(cancelledAt.Ticks % 10));
+            order.CancelledByUserId = actor.Id;
+            order.CancelledByName = actor.DisplayName;
+            order.CancelledByRole = actor.Role;
+            var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == id, ct);
+            if (invoice is not null) invoice.VoidedAt = order.CancelledAt;
+        }
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-        return Ok(new { order.Id, order.Status, statusLabel = OrderingService.StatusLabel(order.Status) });
+        return Ok(OrderingService.ToResponse(order));
     }
 }

@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Happy Holiday Demo",
+      "Group": "Happy Holiday",
+      "Host": "127.0.0.1",
+      "Port": 15439,
+      "MaintenanceDB": "hh_frontend_preview",
+      "Username": "postgres",
+      "DBRestriction": "hh_frontend_preview",
+      "ConnectionParameters": { "sslmode": "prefer", "connect_timeout": "10" }
+    }
+  }
+}

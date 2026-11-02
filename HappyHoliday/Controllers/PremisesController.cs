@@ -80,6 +80,7 @@ public sealed class PremisesController(AppDbContext database) : ControllerBase
         premise.Address = updatedPremise.Address;
         premise.Capacity = updatedPremise.Capacity;
         premise.PricePerHour = updatedPremise.PricePerHour;
+        premise.PromotionPercent = updatedPremise.PromotionPercent;
         premise.ImageUrl = updatedPremise.ImageUrl;
 
         await database.SaveChangesAsync(cancellationToken);

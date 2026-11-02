@@ -29,6 +29,8 @@ The API supports JWT bearer authentication and `client`, `manager`, and `admin` 
 Sprint 2 ordering, profiles, manager quotas, occupancy and pricing are implemented.
 See [backend API, review findings and migration instructions](docs/backend-sprint2.md).
 
+Sprint 3 adds suitable venue alternatives, configurable rental promotions, immutable invoices, delivery to the client portal, and development-only demo checkout with payment receipts. Real money is not charged. Production demo payments are always disabled. See [Sprint 3 workflow, migration and verification](docs/sprint3.md).
+
 ### Run
 ```powershell
 dotnet run --project HappyHoliday

@@ -1,0 +1,15 @@
+# Event service catalogue and picker
+
+Implemented on October 13, 2026.
+
+The admin service catalogue now uses cards with category icons, descriptions, prices, edit/delete actions, and the existing last-edited indication. Name, price, and category sorting work with search and pagination. Services can use catering, equipment/AV, decoration, entertainment, photography/video, planning, staffing, transport, security, cleaning, other, or an administrator-defined custom category. Existing categories remain editable.
+
+Booking service selection now uses paginated cards, search across names/descriptions/category labels, category chips, price/name/category sorting, a selected-only view, and a separate selected package area. Selected quantities survive searching, filtering, and paging. Add/remove, increment/decrement, direct quantity entry, clearing the package, and an explicit use-guest-count shortcut for catering are available. Quantity limits remain 1–100000, with at most 100 distinct services. All filtering and pagination controls are non-submit buttons.
+
+The displayed service subtotal is labeled an estimate and excludes venue rental. Review price continues to call the server; submission and stored orders use authoritative rates and immutable service snapshots. Categories describe catalogue items; this change does not add supplier scheduling, staffing assignments, transport routing, or payment processing. Each description must explain what one unit includes (for example one hour, one serving, or one event package).
+
+The API accepts arbitrary nonempty category strings rather than restricting service types. Names, categories, and descriptions are trimmed before saving, then revalidated. `GET /api/services` supports `category`, case-insensitive `search`, and `sort=name|price-asc|price-desc|category`; unsupported sort values return 400. Admin authorization and history-based delete protection remain enforced. No schema migration is needed.
+
+New empty development databases receive eight additional example services across decor, music, photography, planning, staffing, transport, security, and cleaning. Existing database catalogues are not automatically overwritten. Eight missing examples were added explicitly through the API to the isolated `hh_frontend_preview` database for demonstration; these are sample descriptions/rates, not provider availability promises.
+
+Initial verification: production frontend build passed; 15 frontend regression tests passed; 14 backend tests passed against disposable databases. The new integration test creates nine service categories including a custom category, verifies normalization/search/sorting/authorization/invalid sort/trimmed name validation, and books them together with correct saved line amounts. Browser testing was not completed at that handoff because permission to access the browser was declined. The local preview uses the isolated database at http://127.0.0.1:3001/ when running. Later workflow and release verification is recorded in [Sprint 3 notes](sprint3.md).

@@ -15,16 +15,34 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
     [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<EventService>>> GetServices(
         [FromQuery] string? category, 
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null)
     {
         var query = database.EventServices.AsQueryable();
         
         if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(s => s.Category == category);
+            query = query.Where(s => s.Category == category.Trim());
         }
         
-        return await query.OrderBy(s => s.Name).ToListAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var text = search.Trim().ToLower();
+            query = query.Where(s => s.Name.ToLower().Contains(text)
+                || s.Category.ToLower().Contains(text)
+                || (s.Description != null && s.Description.ToLower().Contains(text)));
+        }
+        var ordered = sort switch
+        {
+            null or "" or "name" => query.OrderBy(s => s.Name),
+            "price-asc" => query.OrderBy(s => s.Price).ThenBy(s => s.Name),
+            "price-desc" => query.OrderByDescending(s => s.Price).ThenBy(s => s.Name),
+            "category" => query.OrderBy(s => s.Category).ThenBy(s => s.Name),
+            _ => null
+        };
+        if (ordered is null) return BadRequest(new ProblemDetails { Detail = "Choose name, price-asc, price-desc, or category sorting." });
+        return await ordered.ThenBy(s => s.Id).ToListAsync(cancellationToken);
     }
 
     [HttpGet("{id:guid}")]
@@ -44,6 +62,9 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
     [Authorize(Roles = UserRoles.Admin)]
     public async Task<ActionResult<EventService>> CreateService(EventService service, CancellationToken cancellationToken)
     {
+        Normalize(service);
+        ModelState.ClearValidationState(string.Empty);
+        if (!TryValidateModel(service)) return ValidationProblem(ModelState);
         database.EventServices.Add(service);
         await database.SaveChangesAsync(cancellationToken);
         return CreatedAtAction(nameof(GetService), new { id = service.Id }, service);
@@ -57,6 +78,10 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
         {
             return BadRequest();
         }
+
+        Normalize(updatedService);
+        ModelState.ClearValidationState(string.Empty);
+        if (!TryValidateModel(updatedService)) return ValidationProblem(ModelState);
 
         var service = await database.EventServices.FindAsync(new object[] { id }, cancellationToken);
         if (service is null)
@@ -88,5 +113,12 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
         database.EventServices.Remove(service);
         await database.SaveChangesAsync(cancellationToken);
         return NoContent();
+    }
+
+    private static void Normalize(EventService service)
+    {
+        service.Name = service.Name.Trim();
+        service.Category = service.Category.Trim();
+        service.Description = string.IsNullOrWhiteSpace(service.Description) ? null : service.Description.Trim();
     }
 }

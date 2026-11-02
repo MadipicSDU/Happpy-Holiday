@@ -20,6 +20,8 @@ public sealed class Premise
 
     [Range(0, 1000000)]
     public decimal PricePerHour { get; set; }
+    [Range(0, 50)]
+    public decimal PromotionPercent { get; set; }
 
     [StringLength(2000)]
     public string? ImageUrl { get; set; }

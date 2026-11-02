@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export default function Modal({ isOpen, onClose, title, children, footer, busy = false, wide = false }) {
+export default function Modal({ isOpen, onClose, title, children, footer, busy = false, wide = false, sidePanel }) {
   const ref = useRef(null), titleId = useId(), closeRef = useRef(onClose), busyRef = useRef(busy);
   closeRef.current = onClose; busyRef.current = busy;
   useEffect(() => {
@@ -26,10 +26,14 @@ export default function Modal({ isOpen, onClose, title, children, footer, busy =
     return () => { if (root) root.inert = wasInert; document.body.style.overflow = overflow; document.removeEventListener('keydown', handleKey); if (previous?.isConnected) previous.focus(); };
   }, [isOpen]);
   if (!isOpen) return null;
+  const main = <>
+    <header className="modal-header"><h2 id={titleId}>{title}</h2><button className="icon-button" onClick={onClose} disabled={busy} aria-label="Close dialog"><X size={20} /></button></header>
+    <div className="modal-body" tabIndex={sidePanel ? 0 : undefined} role={sidePanel ? 'region' : undefined} aria-label={sidePanel ? 'Booking form and review' : undefined}>{children}</div>
+    {footer && <footer className="modal-footer">{footer}</footer>}
+  </>;
   return createPortal(<div className="modal-overlay" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <section ref={ref} className={`modal-content ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-      <header className="modal-header"><h2 id={titleId}>{title}</h2><button className="icon-button" onClick={onClose} disabled={busy} aria-label="Close dialog"><X size={20} /></button></header>
-      <div className="modal-body">{children}</div>{footer && <footer className="modal-footer">{footer}</footer>}
+    <section ref={ref} className={`modal-content ${wide ? 'modal-wide' : ''} ${sidePanel ? 'modal-with-sidepanel' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      {sidePanel ? <><div className="modal-main">{main}</div><aside className="modal-sidepanel" aria-label="Booking receipt">{sidePanel}</aside></> : main}
     </section>
   </div>, document.body);
 }
