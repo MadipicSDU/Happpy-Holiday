@@ -17,6 +17,8 @@ public sealed class EventService
 
     [Range(0, 1000000)]
     public decimal Price { get; set; }
+    [Range(1, 100000)]
+    public int? ConcurrentCapacity { get; set; }
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 }

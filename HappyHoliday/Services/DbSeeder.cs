@@ -39,11 +39,25 @@ public sealed class DbSeeder(
                 new EventService { Name = "Guest Welcome Host", Category = "Staffing", Description = "One host for one hour of guest check-in and welcome support.", Price = 100 },
                 new EventService { Name = "Guest Shuttle Transfer", Category = "Transport", Description = "One shuttle trip for up to 12 guests. Coordinate route and timing with your manager.", Price = 300 },
                 new EventService { Name = "Event Security Officer", Category = "Security", Description = "One security officer for one hour of event coverage.", Price = 150 },
-                new EventService { Name = "Post-event Cleanup", Category = "Cleaning", Description = "One standard venue cleanup package per event.", Price = 250 }
+                new EventService { Name = "Post-event Cleanup", Category = "Cleaning", Description = "One standard venue cleanup package per event.", Price = 250 },
+                new EventService { Name = "Children's Animator", Category = "Animators", Description = "One hour of supervised event games and entertainment.", Price = 250 },
+                new EventService { Name = "Event Host", Category = "Hosts", Description = "One hour of event hosting and announcements.", Price = 300 },
+                new EventService { Name = "Live Musician", Category = "Musicians", Description = "One hour of live musical performance.", Price = 450 },
+                new EventService { Name = "Dance Performance", Category = "Dancers", Description = "One choreographed performance package.", Price = 500 },
+                new EventService { Name = "Banquet Chair", Category = "Furniture", Description = "One chair for the full rental period.", Price = 30, ConcurrentCapacity = 250 }
             );
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        if (!await db.Users.AnyAsync(u => u.Role == UserRoles.Staff, cancellationToken))
+        {
+            foreach (var (name, email) in new[] { ("Demo Event Host", "staff.host@happyholiday.local"), ("Demo AV Technician", "staff.av@happyholiday.local"), ("Demo Performer", "staff.performer@happyholiday.local") })
+            {
+                var staff = new AppUser { DisplayName = name, Email = email, NormalizedEmail = PostgresUserRepository.NormalizeEmail(email), Role = UserRoles.Staff, PasswordHash = "" };
+                staff.PasswordHash = passwordHasher.HashPassword(staff, "Staff123!"); db.Users.Add(staff);
+            }
+            await db.SaveChangesAsync(cancellationToken);
+        }
         // ── Seed client accounts + sample orders ────────────────────
         if (!await db.Users.AnyAsync(u => u.Role == UserRoles.Client, cancellationToken))
         {

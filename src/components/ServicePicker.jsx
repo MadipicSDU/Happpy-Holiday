@@ -7,7 +7,8 @@ import { Pagination, EmptyState } from './UI';
 
 export function ServiceIcon({ category, size = 24 }) {
   const Icon = { FoodPreparation: Utensils, EquipmentRental: Package, Decoration: Palette, Entertainment: Music,
-    Photography: Camera, EventPlanning: CalendarDays, Staffing: Users, Transport: Truck, Security: Shield, Cleaning: Sparkles }[category] || Package;
+    Photography: Camera, EventPlanning: CalendarDays, Staffing: Users, Transport: Truck, Security: Shield, Cleaning: Sparkles,
+    Animators: Sparkles, Hosts: Users, Musicians: Music, Dancers: Music, Furniture: Package }[category] || Package;
   return <Icon size={size} strokeWidth={1.6} />;
 }
 

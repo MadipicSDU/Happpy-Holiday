@@ -10,13 +10,15 @@ import Analytics from './pages/Analytics';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
+import ManagerDashboard from './pages/ManagerDashboard';
+import StaffWorkspace from './pages/StaffWorkspace';
 import { api } from './services/api';
 import { Loading, ErrorNotice } from './components/UI';
 import { CheckCircle2, AlertCircle, RefreshCw, X } from 'lucide-react';
 
 const initialToken = () => { try { return localStorage.getItem('token'); } catch { return null; } };
-const defaultTab = role => role === 'admin' ? 'admin' : role === 'manager' ? 'orders' : 'home';
-const tabs = role => role === 'client' ? ['home', 'spaces', 'events', 'profile'] : role === 'admin' ? ['admin', 'orders', 'clients', 'schedule', 'analytics'] : ['orders', 'clients', 'schedule', 'analytics'];
+const defaultTab = role => role === 'admin' ? 'admin' : role === 'manager' ? 'dashboard' : role === 'staff' ? 'briefs' : 'home';
+const tabs = role => role === 'staff' ? ['briefs'] : role === 'client' ? ['home', 'spaces', 'events', 'profile'] : role === 'admin' ? ['admin', 'dashboard', 'orders', 'clients', 'schedule', 'analytics'] : ['dashboard', 'orders', 'clients', 'schedule', 'analytics'];
 export default function App() {
   const [token, setToken] = useState(initialToken), [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home'), [version, setVersion] = useState(0);
@@ -24,7 +26,8 @@ export default function App() {
   const [loading, setLoading] = useState(Boolean(token)), [error, setError] = useState(''), [authMessage, setAuthMessage] = useState('');
   const [updatedAt, setUpdatedAt] = useState(null), [toasts, setToasts] = useState([]);
   const timers = useRef(new Set());
-  const navigate = tab => { window.location.hash = tab; setActiveTab(tab); };
+  const [openOrderId, setOpenOrderId] = useState(null);
+  const navigate = (tab, orderId = null) => { setOpenOrderId(orderId); window.location.hash = tab; setActiveTab(tab); };
   const showToast = (message, type = 'success') => {
     const id = crypto.randomUUID();
     setToasts(previous => [...previous.slice(-2), { id, message, type }]);
@@ -49,7 +52,7 @@ export default function App() {
     (async () => {
       try {
         const profile = await api.users.me(token, abort.signal);
-        const [venues, services, orders, clients] = await Promise.all([
+        const [venues, services, orders, clients] = profile.role === 'staff' ? [[], [], [], []] : await Promise.all([
           api.premises.getAll(token, abort.signal), api.services.getAll(token, abort.signal), api.orders.getAll(token, abort.signal),
           profile.role === 'client' ? Promise.resolve([]) : api.clients.getAll(token, abort.signal),
         ]);
@@ -101,7 +104,7 @@ export default function App() {
   if (!token) return <Auth onLogin={login} initialMessage={authMessage} />;
   if (!user || !updatedAt) return <div className="startup"><div className="brand-wordmark">happy holiday</div>
     {loading ? <Loading label="Opening your workspace…" /> : <><ErrorNotice message={error || 'Unable to load your workspace.'} onRetry={refresh} /><button className="button secondary" onClick={() => logout()}>Return to sign in</button></>}</div>;
-  const client = user.role === 'client';
+  const client = user.role === 'client', management = ['manager', 'admin'].includes(user.role);
   return <div className="app-shell">
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>Skip to content</a>
     <Header currentRole={user.role} currentUser={user} activeTab={activeTab} setActiveTab={navigate} onLogout={() => logout()} />
@@ -110,12 +113,14 @@ export default function App() {
         <ErrorNotice message={error ? `${error} Showing the last loaded data.` : ''} onRetry={refresh} />
         {client && activeTab === 'home' && <Home currentUser={user} orders={data.orders} onNavigate={navigate} />}
         {client && activeTab === 'spaces' && <BrowseSpaces venues={data.venues} availableServices={data.services} token={token} orders={data.orders} onBookSpace={book} />}
-        {client && activeTab === 'events' && <MyEvents orders={data.orders} onCancel={cancel} onNavigate={navigate} token={token} onRefresh={refresh} />}
+        {client && activeTab === 'events' && <MyEvents venues={data.venues} services={data.services} orders={data.orders} onCancel={cancel} onNavigate={navigate} token={token} onRefresh={refresh} />}
         {client && activeTab === 'profile' && <Profile user={user} onSave={saveProfile} />}
-        {!client && activeTab === 'orders' && <OrderQueue orders={data.orders} onCancel={cancel} isAdmin={user.role === 'admin'} token={token} onRefresh={refresh} />}
-        {!client && activeTab === 'clients' && <MyClients clients={data.clients} showToast={showToast} isAdmin={user.role === 'admin'} />}
-        {!client && activeTab === 'schedule' && <VenueSchedule token={token} refreshVersion={version} />}
-        {!client && activeTab === 'analytics' && <Analytics orders={data.orders} venues={data.venues} isAdmin={user.role === 'admin'} />}
+        {management && activeTab === 'dashboard' && <ManagerDashboard token={token} refreshVersion={version} isAdmin={user.role === 'admin'} onOpenOrder={id => navigate('orders', id)} />}
+        {user.role === 'staff' && activeTab === 'briefs' && <StaffWorkspace token={token} refreshVersion={version} />}
+        {management && activeTab === 'orders' && <OrderQueue openOrderId={openOrderId} orders={data.orders} onCancel={cancel} isAdmin={user.role === 'admin'} token={token} onRefresh={refresh} />}
+        {management && activeTab === 'clients' && <MyClients clients={data.clients} showToast={showToast} isAdmin={user.role === 'admin'} />}
+        {management && activeTab === 'schedule' && <VenueSchedule token={token} refreshVersion={version} />}
+        {management && activeTab === 'analytics' && <Analytics orders={data.orders} venues={data.venues} isAdmin={user.role === 'admin'} />}
         {user.role === 'admin' && activeTab === 'admin' && <AdminDashboard token={token} showToast={showToast} venues={data.venues} services={data.services} onRefresh={refresh} currentUser={user} />}
       </main><footer className="workspace-footer"><span>Happy Holiday · Event spaces & services</span><span>All prices in KZT</span></footer>
     </div>

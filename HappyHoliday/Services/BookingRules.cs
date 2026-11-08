@@ -26,4 +26,18 @@ public static class BookingRules
 
     public static decimal Money(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
     public static decimal Hours(DateTime start, DateTime end) => (end - start).Ticks / (decimal)TimeSpan.TicksPerHour;
+    public static DateTime UtcNow(TimeProvider clock)
+    {
+        var now = clock.GetUtcNow().UtcDateTime;
+        return now.AddTicks(-(now.Ticks % 10));
+    }
+    public static long PeakUnits(IEnumerable<(DateTime Start, DateTime End, int Quantity)> reservations, DateTime from, DateTime to)
+    {
+        var boundaries = reservations.Where(r => Overlaps(from, to, r.Start, r.End))
+            .SelectMany(r => new[] { (At: r.Start < from ? from : r.Start, Delta: (long)r.Quantity), (At: r.End > to ? to : r.End, Delta: -(long)r.Quantity) })
+            .OrderBy(r => r.At).ThenBy(r => r.Delta);
+        long current = 0, peak = 0;
+        foreach (var boundary in boundaries) { current += boundary.Delta; peak = Math.Max(peak, current); }
+        return peak;
+    }
 }

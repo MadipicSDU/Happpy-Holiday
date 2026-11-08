@@ -50,6 +50,7 @@ export function OrderDetails({ order }) {
   return <><div className="detail-head"><div><p className="eyebrow">Reservation</p><h3>{order.venue}</h3><p className="muted">{order.address}</p></div><Status status={order.status} /></div>
     <dl className="details-grid"><div><dt>Rental period</dt><dd>{period(order)}</dd></div><div><dt>Expected guests</dt><dd>{order.guests}</dd></div><div><dt>Reference</dt><dd className="reference">{order.id}</dd></div><div><dt>Manager assignment</dt><dd>{order.managerId ? 'Assigned' : 'Not yet assigned'}</dd></div></dl>
     <CancellationDetails order={order} />
+    {order.revision && <div className="booking-revision"><span>Revision {order.revision}</span><span>Change deadline: {dateTime(order.changeDeadline)}</span><span>Recorded payment applied: {money(order.paidAmount)}</span>{order.pendingChangeId && <strong>Change request awaiting review</strong>}</div>}
     {order.pricing && <Pricing quote={order.pricing} />}
     {order.status === 'pending' && <p className="small muted">Your order has been submitted for manager review. Submission does not confirm the booking.</p>}
   </>;

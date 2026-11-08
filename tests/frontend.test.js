@@ -6,6 +6,7 @@ import { pageWindow } from '../src/usePagination.js';
 import { filterServices, serviceCategoryName } from '../src/serviceCatalogue.js';
 import { bookingEstimate } from '../src/bookingEstimate.js';
 import { demoCardExample, formatDemoCardNumber, formatDemoExpiry, validateDemoPayment } from '../src/demoPayment.js';
+import { nextBriefStatus, canStartBrief, executionInput } from '../src/execution.js';
 
 const venue = { id: 'venue-one', capacity: 100 };
 const year = new Date().getFullYear() + 1;
@@ -220,15 +221,56 @@ test('invoice lifecycle uses scoped routes and repeats payment keys without send
     await api.invoices.get('demo-token', 'order/one');
     await api.invoices.generate('demo-token', 'order/one');
     await api.invoices.deliver('demo-token', 'order/one');
-    await api.invoices.pay('demo-token', 'order/one', 'same-key', 'declined');
-    await api.invoices.pay('demo-token', 'order/one', 'same-key', 'success');
+    await api.invoices.pay('demo-token', 'order/one', 'same-key', 'declined', 'invoice-one');
+    await api.invoices.pay('demo-token', 'order/one', 'same-key', 'success', 'invoice-one');
     assert.ok(calls[0].url.endsWith('/orders/order%2Fone/invoice'));
     assert.deepEqual(calls.map(call => call.method), ['GET', 'POST', 'POST', 'POST', 'POST']);
-    assert.deepEqual(JSON.parse(calls[3].body), { idempotencyKey: 'same-key', outcome: 'declined' });
-    assert.deepEqual(JSON.parse(calls[4].body), { idempotencyKey: 'same-key', outcome: 'success' });
+    assert.deepEqual(JSON.parse(calls[3].body), { idempotencyKey: 'same-key', outcome: 'declined', invoiceId: 'invoice-one' });
+    assert.deepEqual(JSON.parse(calls[4].body), { idempotencyKey: 'same-key', outcome: 'success', invoiceId: 'invoice-one' });
     assert.equal(calls[4].headers.Authorization, 'Bearer demo-token');
     assert.equal(Object.hasOwn(JSON.parse(calls[4].body), 'amount'), false);
   } finally { globalThis.fetch = previous; }
+});
+
+test('booking changes and execution actions send scoped revision preconditions', async () => {
+  const previous = globalThis.fetch, calls = [];
+  try {
+    globalThis.fetch = async (url, options) => { calls.push({ url, ...options }); return new Response('{}'); };
+    await api.changes.quote('token', 'order/one', { booking: {}, expectedRevision: 2 });
+    await api.changes.create('token', 'order/one', { booking: {}, expectedRevision: 2, expectedTotal: 150 });
+    await api.changes.review('token', 'order/one', 'change/one', { approve: true, note: 'Confirmed' });
+    await api.execution.save('token', 'order/one', { expectedVersion: 3, tasks: [] });
+    await api.execution.finalize('token', 'order/one', 4);
+    await api.execution.dispatch('token', 'order/one', 5);
+    await api.briefs.update('token', 'brief/one', 'acknowledged');
+    assert.ok(calls[0].url.endsWith('/orders/order%2Fone/changes/quote'));
+    assert.equal(JSON.parse(calls[1].body).expectedTotal, 150);
+    assert.ok(calls[2].url.endsWith('/orders/order%2Fone/changes/change%2Fone/review'));
+    assert.deepEqual(JSON.parse(calls[4].body), { expectedVersion: 4 });
+    assert.deepEqual(JSON.parse(calls[5].body), { expectedVersion: 5 });
+    assert.ok(calls[6].url.endsWith('/staff/briefs/brief%2Fone'));
+    assert.equal(calls[6].method, 'PATCH');
+  } finally { globalThis.fetch = previous; }
+});
+
+test('execution inputs preserve seconds and stay inside microsecond rental boundaries', () => {
+  const start = new Date(executionInput('2027-01-03T22:30:15.123456Z'));
+  const end = new Date(executionInput('2027-01-04T01:00:45.654321Z', 'end'));
+  assert.equal(start.toISOString(), '2027-01-03T22:30:15.124Z');
+  assert.equal(end.toISOString(), '2027-01-04T01:00:45.654Z');
+  assert.equal(new Date(executionInput('2027-01-03T22:30:15.123Z')).toISOString(), '2027-01-03T22:30:15.123Z');
+  assert.equal(executionInput('invalid'), '');
+});
+
+test('staff progress respects withdrawn briefs and actual activity start times', () => {
+  const brief = { status: 'sent', supersededAt: null, details: { taskStartsAt: '2027-01-01T10:00:00Z' } };
+  assert.equal(nextBriefStatus(brief), 'acknowledged');
+  assert.equal(nextBriefStatus({ ...brief, status: 'acknowledged' }), 'in-progress');
+  assert.equal(nextBriefStatus({ ...brief, status: 'in-progress' }), 'completed');
+  assert.equal(nextBriefStatus({ ...brief, status: 'completed' }), null);
+  assert.equal(nextBriefStatus({ ...brief, supersededAt: '2026-12-01T10:00:00Z' }), null);
+  assert.equal(canStartBrief(brief, new Date('2027-01-01T09:59:59Z')), false);
+  assert.equal(canStartBrief(brief, new Date('2027-01-01T10:00:00Z')), true);
 });
 
 test('demo checkout formats test cards and validates successful and declined samples', () => {

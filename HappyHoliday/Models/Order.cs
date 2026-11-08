@@ -40,6 +40,12 @@ public class Order
     public string? CancelledByRole { get; set; }
 
     public decimal TotalAmount { get; set; }
+    public int Revision { get; set; } = 1;
+    public int ChangeCutoffHours { get; set; } = 168;
+    public decimal PaidAmount { get; set; }
+    public DateTime? PaymentConfirmedAt { get; set; }
+    public Guid? PendingChangeId { get; set; }
+    public string ExecutionState { get; set; } = "not-planned";
 
     public ICollection<OrderService> OrderServices { get; set; } = new List<OrderService>();
 }

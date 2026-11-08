@@ -3,6 +3,7 @@ using HappyHoliday.Contracts;
 using HappyHoliday.Data;
 using HappyHoliday.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HappyHoliday.Services;
 
@@ -11,9 +12,9 @@ public sealed class BookingException(int status, string message) : Exception(mes
     public int Status { get; } = status;
 }
 
-public sealed class OrderingService(AppDbContext db, TimeProvider clock)
+public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOptions<OrderChangeOptions> changeOptions)
 {
-    public async Task<OrderQuote> QuoteAsync(Guid clientId, CreateOrderDto dto, CancellationToken ct)
+    public async Task<OrderQuote> QuoteAsync(Guid clientId, CreateOrderDto dto, CancellationToken ct, string? excludeOrderId = null)
     {
         DateTime start, end;
         if (dto.StartsAt.HasValue && dto.EndsAt.HasValue && !dto.EventDate.HasValue)
@@ -36,7 +37,7 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
             ?? throw new BookingException(404, "Premise not found.");
         if (dto.Guests < 1 || dto.Guests > premise.Capacity)
             throw new BookingException(400, "Guest count must be positive and within the premise capacity.");
-        var active = db.Orders.Where(o => o.Status != "cancelled" && o.Status != "completed"
+        var active = db.Orders.Where(o => o.Id != excludeOrderId && o.Status != "cancelled" && o.Status != "completed"
                                          && o.EventDate < end && o.EndDate > start);
         if (await active.AnyAsync(o => o.PremiseId == premise.Id, ct))
             throw new BookingException(409, "This premise is occupied during the requested period.");
@@ -52,6 +53,16 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
         var ids = selections.Select(s => s.ServiceId).ToList();
         var services = await db.EventServices.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(ct);
         if (services.Count != ids.Count) throw new BookingException(400, "One or more selected services do not exist.");
+        var reserved = await db.OrderServices.Where(s => ids.Contains(s.EventServiceId) && s.OrderId != excludeOrderId
+            && s.Order!.Status != "cancelled" && s.Order.Status != "completed" && s.Order.EventDate < end && s.Order.EndDate > start)
+            .Select(s => new { s.EventServiceId, s.Quantity, Start = s.Order!.EventDate, End = s.Order.EndDate }).ToListAsync(ct);
+        foreach (var selection in selections)
+        {
+            var service = services.Single(s => s.Id == selection.ServiceId);
+            if (service.ConcurrentCapacity is { } capacity && BookingRules.PeakUnits(reserved.Where(r => r.EventServiceId == service.Id)
+                .Select(r => (r.Start, r.End, r.Quantity)), start, end) + selection.Quantity > capacity)
+                throw new BookingException(409, $"Not enough units of {service.Name} are available during this period.");
+        }
         var lines = selections.Select(s =>
         {
             var service = services.Single(item => item.Id == s.ServiceId);
@@ -85,6 +96,7 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
         var order = new Order
         {
             ClientId = clientId, ManagerId = manager.Id, PremiseId = quote.PremiseId,
+            ChangeCutoffHours = changeOptions.Value.CutoffHours,
             EventDate = quote.StartsAt, EndDate = quote.EndsAt, ExpectedGuests = dto.Guests,
             PremiseName = quote.PremiseName, PremiseAddress = quote.Address,
             RentalRate = quote.Rental.UnitPrice, RentalAmount = quote.Rental.Amount, TotalAmount = quote.TotalAmount,
@@ -118,7 +130,8 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock)
             order.TotalAmount, order.ExpectedGuests, pricing,
             order.CancelledAt is { } cancelledAt && order.CancelledByUserId is { } cancelledById
                 ? new OrderCancellation(cancelledById, order.CancelledByName ?? "Name unavailable", order.CancelledByRole ?? "", cancelledAt)
-                : null);
+                : null, order.Revision, order.EventDate.AddHours(-order.ChangeCutoffHours), order.PendingChangeId,
+            order.PaidAmount, order.PaymentConfirmedAt, order.ExecutionState);
     }
     public static string StatusLabel(string status) => status switch
     {

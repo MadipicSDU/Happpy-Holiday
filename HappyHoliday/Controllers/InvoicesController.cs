@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HappyHoliday.Controllers;
 
 [ApiController, Route("api/orders/{orderId}/invoice"), Authorize(Roles = "client,manager,admin")]
-public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHostEnvironment environment, IConfiguration config) : ControllerBase
+public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHostEnvironment environment, IConfiguration config, BillingService billing) : ControllerBase
 {
     private Guid UserId => Guid.Parse(User.FindFirstValue("sub")!);
     private bool DemoEnabled => environment.IsDevelopment() && config.GetValue("Payments:AllowDemo", true);
@@ -25,8 +25,10 @@ public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHos
         var receipt = await db.Payments.AsNoTracking().SingleOrDefaultAsync(p => p.InvoiceId == invoice.Id, ct);
         return new { invoice.Id, invoice.Number, invoice.OrderId, invoice.ClientName, invoice.ClientEmail,
             invoice.CreatedAt, invoice.DeliveredAt, invoice.VoidedAt, invoice.TotalAmount, currency = "KZT",
+            invoice.Revision, invoice.DocumentType, invoice.PreviousPaidAmount, invoice.SettledAt, invoice.IsDemo,
             pricing = JsonSerializer.Deserialize<OrderQuote>(invoice.PricingJson, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
-            status = receipt is not null ? "paid" : invoice.VoidedAt.HasValue ? "void" : invoice.DeliveredAt.HasValue ? "issued" : "draft",
+            status = invoice.VoidedAt.HasValue ? "void" : invoice.DocumentType == "credit-note" ? "credited"
+                : receipt is not null || invoice.SettledAt.HasValue ? "paid" : invoice.DeliveredAt.HasValue ? "issued" : "draft",
             demoPaymentsEnabled = DemoEnabled,
             receipt = receipt is null ? null : new { receipt.Id, receipt.Reference, receipt.Amount, receipt.PaidAt, receipt.IsDemo, currency = "KZT" } };
     }
@@ -40,10 +42,21 @@ public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHos
     [HttpGet]
     public async Task<IActionResult> Get(string orderId, CancellationToken ct)
     {
-        if (await VisibleOrder(orderId, ct) is null) return NotFound();
-        var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId, ct);
+        var order = await VisibleOrder(orderId, ct);
+        if (order is null) return NotFound();
+        var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId && i.Revision == order.Revision, ct);
         if (invoice is null || (User.IsInRole(UserRoles.Client) && invoice.DeliveredAt is null)) return NotFound();
         return Ok(await View(invoice, ct));
+    }
+    [HttpGet("history")]
+    public async Task<IActionResult> History(string orderId, CancellationToken ct)
+    {
+        if (await VisibleOrder(orderId, ct) is null) return NotFound();
+        var invoices = await db.Invoices.Where(i => i.OrderId == orderId && (!User.IsInRole(UserRoles.Client) || i.DeliveredAt != null))
+            .OrderByDescending(i => i.Revision).ToListAsync(ct);
+        var documents = new List<object>();
+        foreach (var invoice in invoices) documents.Add(await View(invoice, ct));
+        return Ok(documents);
     }
     [HttpPost, Authorize(Roles = "manager,admin")]
     public async Task<IActionResult> Generate(string orderId, CancellationToken ct)
@@ -51,14 +64,11 @@ public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHos
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
         var order = await VisibleOrder(orderId, ct);
         if (order is null) return NotFound();
-        var existing = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId, ct);
+        var existing = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId && i.Revision == order.Revision, ct);
         if (existing is not null) return Ok(await View(existing, ct));
         if (order.Status is not ("pending" or "awaiting-payment")) throw new BookingException(409, "Only pending or unpaid orders can be invoiced.");
         await CheckAvailable(order, ct);
-        var invoice = new Invoice { OrderId = order.Id, ClientName = order.Client!.DisplayName, ClientEmail = order.Client.Email,
-            CreatedAt = clock.GetUtcNow().UtcDateTime, TotalAmount = order.TotalAmount,
-            PricingJson = JsonSerializer.Serialize(OrderingService.ToResponse(order).Pricing, new JsonSerializerOptions(JsonSerializerDefaults.Web)) };
-        db.Invoices.Add(invoice);
+        var invoice = billing.Create(order, BookingRules.UtcNow(clock));
         await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return Ok(await View(invoice, ct));
     }
@@ -68,7 +78,7 @@ public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHos
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
         var order = await VisibleOrder(orderId, ct);
         if (order is null) return NotFound();
-        var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId, ct);
+        var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId && i.Revision == order.Revision, ct);
         if (invoice is null) return NotFound();
         if (invoice.VoidedAt.HasValue) throw new BookingException(409, "This invoice was voided.");
         if (invoice.DeliveredAt.HasValue) return Ok(await View(invoice, ct));
@@ -86,16 +96,24 @@ public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHos
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
         var order = await VisibleOrder(orderId, ct);
         if (order is null) return NotFound();
-        var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId && i.DeliveredAt != null, ct);
+        var previous = await db.Payments.Include(p => p.Invoice).SingleOrDefaultAsync(p => p.IdempotencyKey == dto.IdempotencyKey, ct);
+        if (previous is not null)
+        {
+            if (previous.Invoice.OrderId != orderId || previous.InvoiceId != dto.InvoiceId) return Conflict(new ProblemDetails { Detail = "That payment key belongs to another invoice." });
+            return Ok(await View(previous.Invoice, ct));
+        }
+        var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId && i.Revision == order.Revision && i.DeliveredAt != null, ct);
         if (invoice is null) return NotFound();
         var paid = await db.Payments.SingleOrDefaultAsync(p => p.InvoiceId == invoice.Id, ct);
         if (paid is not null) return Ok(await View(invoice, ct));
         if (invoice.VoidedAt.HasValue || order.Status != "awaiting-payment") throw new BookingException(409, "This invoice cannot be paid in the current order state.");
+        if (dto.InvoiceId != invoice.Id) throw new BookingException(409, "The invoice changed. Refresh and review the current amount before paying.");
         if (await db.Payments.AnyAsync(p => p.IdempotencyKey == dto.IdempotencyKey, ct)) throw new BookingException(409, "That payment key was already used for another invoice.");
         await CheckAvailable(order, ct);
         if (dto.Outcome == "declined") throw new BookingException(402, "Demo payment declined. Nothing was paid; you can try again.");
-        db.Payments.Add(new Payment { InvoiceId = invoice.Id, IdempotencyKey = dto.IdempotencyKey, Amount = invoice.TotalAmount,
-            PaidAt = clock.GetUtcNow().UtcDateTime });
+        var now = BookingRules.UtcNow(clock);
+        db.Payments.Add(new Payment { InvoiceId = invoice.Id, IdempotencyKey = dto.IdempotencyKey, Amount = invoice.TotalAmount, PaidAt = now });
+        invoice.SettledAt = now; order.PaidAmount += invoice.TotalAmount; order.PaymentConfirmedAt = now;
         order.Status = "confirmed";
         await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return Ok(await View(invoice, ct));

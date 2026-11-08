@@ -13,6 +13,11 @@ public sealed class Invoice
     public DateTime CreatedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public DateTime? VoidedAt { get; set; }
+    public int Revision { get; set; } = 1;
+    public string DocumentType { get; set; } = "invoice";
+    public decimal PreviousPaidAmount { get; set; }
+    public DateTime? SettledAt { get; set; }
+    public bool IsDemo { get; set; }
 }
 
 public sealed class Payment

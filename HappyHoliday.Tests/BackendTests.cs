@@ -31,6 +31,7 @@ public sealed class BackendTests
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private AppUser[] _clients = [];
     private AppUser[] _managers = [];
+    private AppUser[] _staff = [];
     private AppUser _admin = null!;
     private Premise[] _premises = [];
     private EventService _service = null!;
@@ -125,11 +126,12 @@ public sealed class BackendTests
         }
         _clients = Enumerable.Range(0, 5).Select(i => User("client", "Client" + i)).ToArray();
         _managers = Enumerable.Range(0, 2).Select(i => User("manager", "Manager" + i)).ToArray();
+        _staff = Enumerable.Range(0, 3).Select(i => User("staff", "Operator" + i)).ToArray();
         _admin = User("admin", "Administrator");
         _premises = Enumerable.Range(0, 6).Select(i => new Premise { Name = "Venue " + i, Address = "Street " + i,
             Capacity = 100, PricePerHour = 100.01m }).ToArray();
         _service = new EventService { Name = "Equipment", Category = "EquipmentRental", Price = 10.25m };
-        db.Users.AddRange(_clients.Concat(_managers).Append(_admin));
+        db.Users.AddRange(_clients.Concat(_managers).Concat(_staff).Append(_admin));
         db.Premises.AddRange(_premises);
         db.EventServices.Add(_service);
         await db.SaveChangesAsync();
@@ -154,6 +156,219 @@ public sealed class BackendTests
         var message = await response.Content.ReadAsStringAsync();
         if (status != response.StatusCode) lock (Logs) message += "\n" + string.Join('\n', Logs.TakeLast(70));
         Assert.AreEqual(status, response.StatusCode, message);
+    }
+
+    private async Task<JsonElement> PaidOrder(HttpClient client, object request)
+    {
+        var created = await client.PostAsJsonAsync("/api/orders", request); await Check(created, HttpStatusCode.Created);
+        var id = (await Body(created)).GetProperty("id").GetString(); using var admin = Http(_admin);
+        await Check(await admin.PostAsync($"/api/orders/{id}/invoice", null), HttpStatusCode.OK);
+        var issued = await admin.PostAsync($"/api/orders/{id}/invoice/deliver", null); await Check(issued, HttpStatusCode.OK);
+        var invoice = await Body(issued);
+        await Check(await client.PostAsJsonAsync($"/api/orders/{id}/invoice/pay", new { idempotencyKey = Guid.NewGuid(), invoiceId = invoice.GetProperty("id").GetGuid() }), HttpStatusCode.OK);
+        return await Body(await client.GetAsync("/api/orders/" + id));
+    }
+    private async Task<JsonElement> Change(HttpClient client, JsonElement order, object booking)
+    {
+        var path = "/api/orders/" + order.GetProperty("id").GetString() + "/changes";
+        var preview = await client.PostAsJsonAsync(path + "/quote", new { expectedRevision = order.GetProperty("revision").GetInt32(), booking }); await Check(preview, HttpStatusCode.OK);
+        var total = (await Body(preview)).GetProperty("pricing").GetProperty("totalAmount").GetDecimal();
+        var request = await client.PostAsJsonAsync(path, new { expectedRevision = order.GetProperty("revision").GetInt32(), expectedTotal = total, booking, reason = "Updated event details" });
+        await Check(request, HttpStatusCode.OK); return await Body(request);
+    }
+    private object PlanBody(int? expectedVersion, Guid staff, DateTimeOffset? start = null, DateTimeOffset? end = null, string notes = "Test brief") => new {
+        expectedVersion, notes, tasks = new[] { new { activity = "Equipment setup", serviceId = _service.Id, staffId = staff,
+            startsAt = start ?? _start, endsAt = end ?? _start.AddHours(1.5), instructions = "Prepare the booked equipment." } }
+    };
+
+    [TestMethod]
+    public async Task Sprint4ChangesPreserveHistoryAndSettleOnlyTheDelta()
+    {
+        using var client = Http(_clients[0]); using var admin = Http(_admin);
+        var order = await PaidOrder(client, Request()); var id = order.GetProperty("id").GetString(); var path = $"/api/orders/{id}";
+        Assert.AreEqual(168, (int)(order.GetProperty("startsAt").GetDateTime() - order.GetProperty("changeDeadline").GetDateTime()).TotalHours);
+        var original = await Body(await client.GetAsync(path + "/invoice"));
+        var request = await Change(client, order, Request(1, end: _start.AddHours(2)));
+        Assert.AreEqual(1, (await Body(await client.GetAsync(path))).GetProperty("revision").GetInt32());
+        using var other = Http(_clients[1]); await Check(await other.GetAsync(path + "/changes"), HttpStatusCode.NotFound);
+        using var unassigned = Http(_managers.Single(m => m.Id != order.GetProperty("managerId").GetGuid()));
+        await Check(await unassigned.PostAsJsonAsync(path + $"/changes/{request.GetProperty("id").GetGuid()}/review", new { approve = true }), HttpStatusCode.NotFound);
+        var reviewPath = path + $"/changes/{request.GetProperty("id").GetGuid()}/review";
+        await Check(await admin.PostAsJsonAsync(reviewPath, new { approve = true }), HttpStatusCode.OK);
+        await Check(await admin.PostAsJsonAsync(reviewPath, new { approve = true }), HttpStatusCode.OK);
+        var changed = await Body(await client.GetAsync(path));
+        Assert.AreEqual(2, changed.GetProperty("revision").GetInt32()); Assert.AreEqual("awaiting-payment", changed.GetProperty("status").GetString());
+        Assert.AreEqual(180.77m, changed.GetProperty("paidAmount").GetDecimal());
+        var extra = await Body(await client.GetAsync(path + "/invoice")); Assert.AreEqual(50m, extra.GetProperty("totalAmount").GetDecimal());
+        await Check(await client.PostAsJsonAsync(path + "/invoice/pay", new { idempotencyKey = Guid.NewGuid(), invoiceId = original.GetProperty("id").GetGuid() }), HttpStatusCode.Conflict);
+        await Check(await client.PatchAsJsonAsync(path + "/status", new { status = "cancelled" }), HttpStatusCode.BadRequest);
+        await Check(await client.PostAsJsonAsync(path + "/invoice/pay", new { idempotencyKey = Guid.NewGuid(), invoiceId = extra.GetProperty("id").GetGuid() }), HttpStatusCode.OK);
+        changed = await Body(await client.GetAsync(path)); Assert.AreEqual("confirmed", changed.GetProperty("status").GetString());
+        Assert.AreEqual(230.77m, changed.GetProperty("paidAmount").GetDecimal());
+        var cheaper = await Change(client, changed, Request(1, end: _start.AddHours(1)));
+        await Check(await admin.PostAsJsonAsync(path + $"/changes/{cheaper.GetProperty("id").GetGuid()}/review", new { approve = true }), HttpStatusCode.OK);
+        var credit = await Body(await client.GetAsync(path + "/invoice"));
+        Assert.AreEqual("credit-note", credit.GetProperty("documentType").GetString()); Assert.AreEqual("credited", credit.GetProperty("status").GetString());
+        Assert.AreEqual(100.01m, credit.GetProperty("totalAmount").GetDecimal());
+        var history = await Body(await client.GetAsync(path + "/invoice/history")); Assert.AreEqual(3, history.GetArrayLength());
+        var savedOriginal = history.EnumerateArray().Single(document => document.GetProperty("revision").GetInt32() == 1);
+        Assert.AreEqual(original.GetProperty("pricing").GetRawText(), savedOriginal.GetProperty("pricing").GetRawText());
+        await using var db = Database(); Assert.AreEqual(2, await db.Payments.CountAsync());
+        Assert.AreEqual(130.76m, (await db.Orders.SingleAsync()).PaidAmount);
+    }
+
+    [TestMethod]
+    public async Task Sprint4ChangeDeadlineConflictWithdrawalAndQuotedPrices()
+    {
+        using var client = Http(_clients[0]); using var admin = Http(_admin); using var other = Http(_clients[1]);
+        var created = await client.PostAsJsonAsync("/api/orders", Request()); await Check(created, HttpStatusCode.Created);
+        var order = await Body(created); var id = order.GetProperty("id").GetString(); var path = $"/api/orders/{id}/changes";
+        await Check(await client.PostAsJsonAsync(path + "/quote", new { expectedRevision = 1, booking = Request(1, start: DateTimeOffset.UtcNow.AddDays(6), end: DateTimeOffset.UtcNow.AddDays(6).AddHours(2)) }), HttpStatusCode.Conflict);
+        await Check(await client.PostAsJsonAsync(path, new { expectedRevision = 1, expectedTotal = 0, booking = Request(1) }), HttpStatusCode.Conflict);
+        var request = await Change(client, order, Request(1));
+        await Check(await client.PostAsJsonAsync(path, new { expectedRevision = 1, expectedTotal = 180.77m, booking = Request(1) }), HttpStatusCode.Conflict);
+        var blocker = await other.PostAsJsonAsync("/api/orders", Request(1)); await Check(blocker, HttpStatusCode.Created);
+        var reviewPath = path + $"/{request.GetProperty("id").GetGuid()}/review";
+        await Check(await admin.PostAsJsonAsync(reviewPath, new { approve = true }), HttpStatusCode.Conflict);
+        Assert.AreEqual(1, (await Body(await client.GetAsync($"/api/orders/{id}"))).GetProperty("revision").GetInt32());
+        var blockedId = (await Body(blocker)).GetProperty("id").GetString();
+        await Check(await other.PatchAsJsonAsync($"/api/orders/{blockedId}/status", new { status = "cancelled" }), HttpStatusCode.OK);
+        await using (var db = Database()) { (await db.Premises.FindAsync(_premises[1].Id))!.PricePerHour = 999; await db.SaveChangesAsync(); }
+        await Check(await admin.PostAsJsonAsync(reviewPath, new { approve = true }), HttpStatusCode.OK);
+        var changed = await Body(await client.GetAsync($"/api/orders/{id}")); Assert.AreEqual(180.77m, changed.GetProperty("totalAmount").GetDecimal());
+        var pending = await Change(client, changed, Request(2));
+        await Check(await client.PostAsync(path + $"/{pending.GetProperty("id").GetGuid()}/withdraw", null), HttpStatusCode.OK);
+        await using (var db = Database()) { var record = await db.Orders.SingleAsync(o => o.Id == id); record.EventDate = DateTime.UtcNow.AddDays(6); record.EndDate = record.EventDate.AddHours(2); await db.SaveChangesAsync(); }
+        await Check(await client.PostAsJsonAsync(path + "/quote", new { expectedRevision = 2, booking = Request(2) }), HttpStatusCode.Conflict);
+    }
+
+    [TestMethod]
+    public async Task Sprint4ServiceCapacityUsesPeakOverlapAndScopesTheWorklist()
+    {
+        await using (var db = Database()) { (await db.EventServices.FindAsync(_service.Id))!.ConcurrentCapacity = 3; await db.SaveChangesAsync(); }
+        using var client = Http(_clients[0]); using var other = Http(_clients[1]); using var admin = Http(_admin);
+        var booked = await client.PostAsJsonAsync("/api/orders", Request()); await Check(booked, HttpStatusCode.Created);
+        var order = await Body(booked);
+        await Check(await other.PostAsJsonAsync("/api/orders", Request(1)), HttpStatusCode.Conflict);
+        await Check(await other.PostAsJsonAsync("/api/orders", Request(1, start: _start.AddHours(1.5), end: _start.AddHours(3))), HttpStatusCode.Created);
+        using var manager = Http(_managers.Single(m => m.Id == order.GetProperty("managerId").GetGuid()));
+        var query = "/api/management/dashboard?from=" + Uri.EscapeDataString(_start.ToString("O")) + "&to=" + Uri.EscapeDataString(_start.AddHours(4).ToString("O"));
+        var response = await manager.GetAsync(query); await Check(response, HttpStatusCode.OK);
+        var dashboard = await Body(response); Assert.AreEqual(1, dashboard.GetProperty("worklist").GetArrayLength());
+        Assert.AreEqual(3L, dashboard.GetProperty("services")[0].GetProperty("reservedUnits").GetInt64());
+        Assert.AreEqual(0L, dashboard.GetProperty("services")[0].GetProperty("availableUnits").GetInt64());
+        Assert.AreEqual(2, dashboard.GetProperty("occupancy").EnumerateArray().Count(venue => venue.GetProperty("occupied").GetBoolean()));
+        await Check(await admin.PutAsJsonAsync("/api/services/" + _service.Id, new { id = _service.Id, name = _service.Name, category = _service.Category, price = _service.Price, concurrentCapacity = 2 }), HttpStatusCode.Conflict);
+        await Check(await client.GetAsync(query), HttpStatusCode.Forbidden);
+    }
+
+    [TestMethod]
+    public async Task Sprint4PaidExecutionDispatchesPrivateIdempotentStaffBriefs()
+    {
+        using var client = Http(_clients[0]); var order = await PaidOrder(client, Request()); var id = order.GetProperty("id").GetString();
+        var path = $"/api/orders/{id}/execution";
+        using var manager = Http(_managers.Single(m => m.Id == order.GetProperty("managerId").GetGuid()));
+        using var unassigned = Http(_managers.Single(m => m.Id != order.GetProperty("managerId").GetGuid()));
+        using var worker = Http(_staff[0]); using var otherWorker = Http(_staff[1]);
+        await Check(await client.PutAsJsonAsync(path, PlanBody(null, _staff[0].Id)), HttpStatusCode.Forbidden);
+        await Check(await unassigned.GetAsync(path), HttpStatusCode.NotFound);
+        await Check(await worker.GetAsync("/api/orders"), HttpStatusCode.Forbidden);
+        // Use persisted UTC precision for the rental boundaries.
+        var start = new DateTimeOffset(order.GetProperty("startsAt").GetDateTime()); var end = new DateTimeOffset(order.GetProperty("endsAt").GetDateTime());
+        var draftResponse = await manager.PutAsJsonAsync(path, PlanBody(null, _staff[0].Id, start, end)); await Check(draftResponse, HttpStatusCode.OK);
+        var draft = await Body(draftResponse);
+        await Check(await manager.PostAsJsonAsync(path + "/dispatch", new { expectedVersion = 1 }), HttpStatusCode.Conflict);
+        var finalizedResponse = await manager.PostAsJsonAsync(path + "/finalize", new { expectedVersion = draft.GetProperty("version").GetInt32() }); await Check(finalizedResponse, HttpStatusCode.OK);
+        var finalized = await Body(finalizedResponse);
+        var dispatchedResponse = await manager.PostAsJsonAsync(path + "/dispatch", new { expectedVersion = finalized.GetProperty("version").GetInt32() }); await Check(dispatchedResponse, HttpStatusCode.OK);
+        await Check(await manager.PostAsJsonAsync(path + "/dispatch", new { expectedVersion = finalized.GetProperty("version").GetInt32() }), HttpStatusCode.OK);
+        var briefs = await Body(await worker.GetAsync("/api/staff/briefs")); Assert.AreEqual(1, briefs.GetArrayLength());
+        Assert.AreEqual(0, (await Body(await otherWorker.GetAsync("/api/staff/briefs"))).GetArrayLength());
+        Assert.DoesNotContain("totalAmount", briefs.GetRawText()); Assert.DoesNotContain("email", briefs.GetRawText());
+        var briefId = briefs[0].GetProperty("id").GetGuid();
+        await Check(await otherWorker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "acknowledged" }), HttpStatusCode.NotFound);
+        await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "acknowledged" }), HttpStatusCode.OK);
+        await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "in-progress" }), HttpStatusCode.Conflict);
+        await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "completed" }), HttpStatusCode.BadRequest);
+        var progress = await Body(await manager.GetAsync(path)); Assert.AreEqual("acknowledged", progress.GetProperty("briefs")[0].GetProperty("status").GetString());
+        await using var db = Database(); Assert.AreEqual(1, await db.ExecutionBriefs.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task Sprint4StaffConflictsAndChangedBookingsWithdrawEarlierBriefs()
+    {
+        using var client = Http(_clients[0]); using var admin = Http(_admin); using var worker = Http(_staff[0]);
+        var first = await PaidOrder(client, Request()); var second = await PaidOrder(client, Request(1));
+        var firstId = first.GetProperty("id").GetString(); var secondId = second.GetProperty("id").GetString();
+        var start = new DateTimeOffset(first.GetProperty("startsAt").GetDateTime()); var end = new DateTimeOffset(first.GetProperty("endsAt").GetDateTime()); var middle = start.AddMinutes(45);
+        var p1 = $"/api/orders/{firstId}/execution"; var p2 = $"/api/orders/{secondId}/execution";
+        var draft = await admin.PutAsJsonAsync(p1, PlanBody(null, _staff[0].Id, start, middle)); await Check(draft, HttpStatusCode.OK);
+        await Check(await admin.PostAsJsonAsync(p1 + "/finalize", new { expectedVersion = 1 }), HttpStatusCode.OK);
+        await Check(await admin.PutAsJsonAsync(p2, PlanBody(null, _staff[0].Id, start, end)), HttpStatusCode.OK);
+        await Check(await admin.PostAsJsonAsync(p2 + "/finalize", new { expectedVersion = 1 }), HttpStatusCode.Conflict);
+        await Check(await admin.PutAsJsonAsync(p2, PlanBody(1, _staff[0].Id, middle, end)), HttpStatusCode.OK);
+        await Check(await admin.PostAsJsonAsync(p2 + "/finalize", new { expectedVersion = 2 }), HttpStatusCode.OK);
+        await Check(await admin.PutAsJsonAsync(p2, PlanBody(1, _staff[1].Id, start, end)), HttpStatusCode.Conflict);
+        await Check(await admin.PostAsJsonAsync(p1 + "/dispatch", new { expectedVersion = 2 }), HttpStatusCode.OK);
+        var brief = (await Body(await worker.GetAsync("/api/staff/briefs")))[0]; var briefId = brief.GetProperty("id").GetGuid();
+        var snapshot = brief.GetProperty("details").GetRawText();
+        await Check(await admin.PutAsJsonAsync(p1, PlanBody(3, _staff[1].Id, start, middle, "Revised instructions")), HttpStatusCode.OK);
+        await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "acknowledged" }), HttpStatusCode.Conflict);
+        var withdrawn = (await Body(await worker.GetAsync("/api/staff/briefs")))[0];
+        Assert.AreEqual(snapshot, withdrawn.GetProperty("details").GetRawText()); Assert.AreNotEqual(JsonValueKind.Null, withdrawn.GetProperty("supersededAt").ValueKind);
+        await Check(await admin.PostAsJsonAsync(p1 + "/finalize", new { expectedVersion = 4 }), HttpStatusCode.OK);
+        await Check(await admin.PostAsJsonAsync(p1 + "/dispatch", new { expectedVersion = 5 }), HttpStatusCode.OK);
+        var change = await Change(client, first, Request(start: _start.AddDays(1), end: _start.AddDays(1).AddHours(1.5)));
+        await Check(await admin.PostAsJsonAsync($"/api/orders/{firstId}/changes/{change.GetProperty("id").GetGuid()}/review", new { approve = true }), HttpStatusCode.OK);
+        await Check(await admin.GetAsync(p1), HttpStatusCode.NotFound);
+        var changed = await Body(await client.GetAsync("/api/orders/" + firstId));
+        Assert.AreEqual("needs-rescheduling", changed.GetProperty("executionState").GetString()); Assert.AreEqual("confirmed", changed.GetProperty("status").GetString());
+        await using var db = Database(); Assert.AreEqual(2, await db.ExecutionBriefs.CountAsync()); Assert.AreEqual(0, await db.ExecutionBriefs.CountAsync(b => b.SupersededAt == null));
+    }
+
+    [TestMethod]
+    public async Task Sprint4StaffProgressFeedsLiveMonitoringAndHistoryGuards()
+    {
+        using var admin = Http(_admin); using var worker = Http(_staff[0]);
+        var now = BookingRules.UtcNow(TimeProvider.System); var orderId = "ORD-LIVE-EXECUTION";
+        Guid briefId;
+        await using (var db = Database())
+        {
+            var order = new Order { Id = orderId, ClientId = _clients[0].Id, ManagerId = _managers[0].Id, PremiseId = _premises[0].Id,
+                PremiseName = _premises[0].Name, PremiseAddress = _premises[0].Address, EventDate = now.AddHours(-2), EndDate = now.AddHours(2),
+                Status = "confirmed", TotalAmount = 100, PaidAmount = 100, PaymentConfirmedAt = now.AddHours(-3), ExecutionState = "dispatched" };
+            var plan = new ExecutionPlan { Order = order, OrderRevision = 1, Version = 3, State = "dispatched", UpdatedAt = now, FinalizedAt = now, DispatchedAt = now };
+            var task = new ExecutionTask { Plan = plan, StaffId = _staff[0].Id, StaffName = _staff[0].DisplayName, Activity = "Event support", StartsAt = now.AddHours(-1), EndsAt = now.AddHours(1) };
+            plan.Tasks.Add(task);
+            var detail = new ExecutionBriefSnapshot(orderId, 1, order.PremiseName, order.PremiseAddress, 50, order.EventDate, order.EndDate,
+                task.Activity, "Venue preparation", 1, _staff[0].DisplayName, _managers[0].DisplayName, task.StartsAt, task.EndsAt, "Support guests", "Live event");
+            var brief = new ExecutionBrief { Plan = plan, PlanVersion = 3, TaskId = task.Id, StaffId = _staff[0].Id,
+                SnapshotJson = JsonSerializer.Serialize(detail, BillingService.Json), SentAt = now, UpdatedAt = now };
+            briefId = brief.Id; db.Orders.Add(order); db.ExecutionPlans.Add(plan); db.ExecutionBriefs.Add(brief); await db.SaveChangesAsync();
+        }
+        foreach (var status in new[] { "acknowledged", "in-progress" }) await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status }), HttpStatusCode.OK);
+        var query = "/api/management/dashboard?from=" + Uri.EscapeDataString(new DateTimeOffset(now.AddHours(-1)).ToString("O")) + "&to=" + Uri.EscapeDataString(new DateTimeOffset(now.AddHours(1)).ToString("O"));
+        var liveResponse = await admin.GetAsync(query); await Check(liveResponse, HttpStatusCode.OK);
+        Assert.AreEqual(1, (await Body(liveResponse)).GetProperty("counts").GetProperty("activeServices").GetInt32());
+        await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "completed" }), HttpStatusCode.OK);
+        Assert.AreEqual(0, (await Body(await admin.GetAsync(query))).GetProperty("counts").GetProperty("activeServices").GetInt32());
+        await Check(await admin.DeleteAsync("/api/users/" + _staff[0].Id), HttpStatusCode.Conflict);
+        await Check(await admin.PutAsJsonAsync("/api/users/" + _staff[0].Id, new { name = _staff[0].DisplayName, email = _staff[0].Email, role = "client" }), HttpStatusCode.Conflict);
+        await Check(await admin.PutAsJsonAsync($"/api/orders/{orderId}/execution", PlanBody(3, _staff[1].Id)), HttpStatusCode.Conflict);
+        var created = await admin.PostAsJsonAsync("/api/auth/staff", new { displayName = "New performer", email = "performer@test.local", password = "Password1!", role = "staff" });
+        await Check(created, HttpStatusCode.Created);
+        using var anonymous = Http(); await Check(await anonymous.PostAsJsonAsync("/api/auth/login", new { email = "performer@test.local", password = "Password1!" }), HttpStatusCode.OK);
+    }
+
+    [TestMethod]
+    public async Task Sprint4ConcurrentServiceReservationsCannotExceedCapacity()
+    {
+        await using (var db = Database()) { (await db.EventServices.FindAsync(_service.Id))!.ConcurrentCapacity = 3; await db.SaveChangesAsync(); }
+        using var first = Http(_clients[0]); using var second = Http(_clients[1]);
+        var responses = await Task.WhenAll(first.PostAsJsonAsync("/api/orders", Request()), second.PostAsJsonAsync("/api/orders", Request(1)));
+        Assert.AreEqual(1, responses.Count(response => response.StatusCode == HttpStatusCode.Created));
+        Assert.AreEqual(1, responses.Count(response => response.StatusCode == HttpStatusCode.Conflict));
+        await using var check = Database(); Assert.AreEqual(1, await check.Orders.CountAsync());
     }
 
     [TestMethod]
@@ -404,7 +619,8 @@ public sealed class BackendTests
         await Check(await manager.PostAsync($"/api/orders/{id}/invoice", null), HttpStatusCode.OK);
         await Check(await manager.PostAsync($"/api/orders/{id}/invoice/deliver", null), HttpStatusCode.OK);
         await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "confirmed" }), HttpStatusCode.BadRequest);
-        await Check(await client.PostAsJsonAsync($"/api/orders/{id}/invoice/pay", new { idempotencyKey = Guid.NewGuid() }), HttpStatusCode.OK);
+        var issuedInvoice = await Body(await client.GetAsync($"/api/orders/{id}/invoice"));
+        await Check(await client.PostAsJsonAsync($"/api/orders/{id}/invoice/pay", new { idempotencyKey = Guid.NewGuid(), invoiceId = issuedInvoice.GetProperty("id").GetGuid() }), HttpStatusCode.OK);
         await Check(await manager.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "completed" }), HttpStatusCode.BadRequest);
         await Check(await manager.DeleteAsync("/api/users/" + _admin.Id), HttpStatusCode.Forbidden);
         using var admin = Http(_admin);
@@ -487,11 +703,11 @@ public sealed class BackendTests
         await Check(await manager.PostAsync(path + "/deliver", null), HttpStatusCode.OK);
         await Check(await otherClient.GetAsync(path), HttpStatusCode.NotFound);
         await Check(await otherManager.GetAsync(path), HttpStatusCode.NotFound);
-        await Check(await client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = Guid.NewGuid(), outcome = "declined" }), HttpStatusCode.PaymentRequired);
+        await Check(await client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = Guid.NewGuid(), outcome = "declined", invoiceId = invoice.GetProperty("id").GetGuid() }), HttpStatusCode.PaymentRequired);
         Assert.AreEqual("awaiting-payment", (await Body(await client.GetAsync("/api/orders/" + id))).GetProperty("status").GetString());
         var key = Guid.NewGuid();
-        var replies = await Task.WhenAll(client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = key, amount = 0 }),
-            client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = key, amount = 0 }));
+        var replies = await Task.WhenAll(client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = key, amount = 0, invoiceId = invoice.GetProperty("id").GetGuid() }),
+            client.PostAsJsonAsync(path + "/pay", new { idempotencyKey = key, amount = 0, invoiceId = invoice.GetProperty("id").GetGuid() }));
         foreach (var response in replies) await Check(response, HttpStatusCode.OK);
         var paid = await Body(replies[0]);
         Assert.AreEqual("paid", paid.GetProperty("status").GetString());

@@ -71,6 +71,7 @@ public sealed class OrdersController(AppDbContext db, OrderingService ordering, 
         order.Status = dto.Status;
         if (dto.Status == "cancelled")
         {
+            if (order.PaidAmount > 0) return BadRequest(new ProblemDetails { Detail = "A paid booking requires the cancellation and refund workflow." });
             var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == UserId, ct);
             if (actor is null) return Unauthorized();
             var cancelledAt = clock.GetUtcNow().UtcDateTime;
@@ -79,8 +80,11 @@ public sealed class OrdersController(AppDbContext db, OrderingService ordering, 
             order.CancelledByUserId = actor.Id;
             order.CancelledByName = actor.DisplayName;
             order.CancelledByRole = actor.Role;
-            var invoice = await db.Invoices.SingleOrDefaultAsync(i => i.OrderId == id, ct);
-            if (invoice is not null) invoice.VoidedAt = order.CancelledAt;
+            foreach (var invoice in await db.Invoices.Where(i => i.OrderId == id && i.SettledAt == null
+                && !db.Payments.Any(p => p.InvoiceId == i.Id)).ToListAsync(ct)) invoice.VoidedAt = order.CancelledAt;
+            foreach (var change in await db.OrderChanges.Where(c => c.OrderId == id && c.Status == "pending").ToListAsync(ct)) change.Status = "cancelled";
+            order.PendingChangeId = null;
+            await ExecutionWorkflow.Invalidate(db, order, order.CancelledAt.Value, "cancelled", ct);
         }
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

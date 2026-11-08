@@ -1,6 +1,7 @@
 export const serviceCategories = [
   ['FoodPreparation', 'Catering & drinks'], ['EquipmentRental', 'Equipment & AV'],
   ['Decoration', 'Decor & flowers'], ['Entertainment', 'Music & entertainment'],
+  ['Animators', 'Animators'], ['Hosts', 'Event hosts'], ['Musicians', 'Live musicians'], ['Dancers', 'Dancers'], ['Furniture', 'Furniture'],
   ['Photography', 'Photography & video'], ['EventPlanning', 'Planning & coordination'],
   ['Staffing', 'Event staff'], ['Transport', 'Transport & transfers'],
   ['Security', 'Security & guest support'], ['Cleaning', 'Cleaning & setup'],

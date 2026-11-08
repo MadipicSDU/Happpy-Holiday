@@ -81,6 +81,9 @@ namespace HappyHoliday.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int?>("ConcurrentCapacity")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -99,6 +102,137 @@ namespace HappyHoliday.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("event_services", (string)null);
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionBrief", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PlanVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SupersededAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StaffId", "SupersededAt");
+
+                    b.HasIndex("PlanId", "PlanVersion", "TaskId")
+                        .IsUnique();
+
+                    b.ToTable("execution_briefs", (string)null);
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DispatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FinalizedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("OrderRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "OrderRevision")
+                        .IsUnique();
+
+                    b.ToTable("execution_plans", (string)null);
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Activity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ServiceName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("StaffId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StaffName")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("StaffId", "StartsAt", "EndsAt");
+
+                    b.ToTable("execution_tasks", (string)null);
                 });
 
             modelBuilder.Entity("HappyHoliday.Models.Invoice", b =>
@@ -123,6 +257,15 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<DateTime?>("DeliveredAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("invoice");
+
+                    b.Property<bool>("IsDemo")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Number")
                         .IsRequired()
                         .HasColumnType("text");
@@ -131,9 +274,21 @@ namespace HappyHoliday.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<decimal>("PreviousPaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("PricingJson")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("Revision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<DateTime?>("SettledAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(18, 2)
@@ -147,7 +302,7 @@ namespace HappyHoliday.Data.Migrations
                     b.HasIndex("Number")
                         .IsUnique();
 
-                    b.HasIndex("OrderId")
+                    b.HasIndex("OrderId", "Revision")
                         .IsUnique();
 
                     b.ToTable("invoices", (string)null);
@@ -172,6 +327,11 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<Guid?>("CancelledByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("ChangeCutoffHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(168);
+
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid");
 
@@ -181,6 +341,12 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<DateTime>("EventDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ExecutionState")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("not-planned");
+
                     b.Property<int>("ExpectedGuests")
                         .HasColumnType("integer");
 
@@ -188,6 +354,16 @@ namespace HappyHoliday.Data.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<Guid?>("ManagerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("PaymentConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PendingChangeId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("PremiseAddress")
@@ -217,6 +393,11 @@ namespace HappyHoliday.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<int>("Revision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -234,6 +415,66 @@ namespace HappyHoliday.Data.Migrations
                     b.HasIndex("PremiseId", "EventDate", "EndDate");
 
                     b.ToTable("orders", (string)null);
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.OrderChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Guests")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("OriginalRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PreviousPricingJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("PriceDelta")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ProposalJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewNote")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewedByName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'pending'");
+
+                    b.ToTable("order_changes", (string)null);
                 });
 
             modelBuilder.Entity("HappyHoliday.Models.OrderService", b =>
@@ -359,6 +600,39 @@ namespace HappyHoliday.Data.Migrations
                     b.ToTable("premises", (string)null);
                 });
 
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionBrief", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.ExecutionPlan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionPlan", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionTask", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.ExecutionPlan", "Plan")
+                        .WithMany("Tasks")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
             modelBuilder.Entity("HappyHoliday.Models.Invoice", b =>
                 {
                     b.HasOne("HappyHoliday.Models.Order", "Order")
@@ -396,6 +670,17 @@ namespace HappyHoliday.Data.Migrations
                     b.Navigation("Premise");
                 });
 
+            modelBuilder.Entity("HappyHoliday.Models.OrderChange", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("HappyHoliday.Models.OrderService", b =>
                 {
                     b.HasOne("HappyHoliday.Models.EventService", "EventService")
@@ -424,6 +709,11 @@ namespace HappyHoliday.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ExecutionPlan", b =>
+                {
+                    b.Navigation("Tasks");
                 });
 
             modelBuilder.Entity("HappyHoliday.Models.Order", b =>

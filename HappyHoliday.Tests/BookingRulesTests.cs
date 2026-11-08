@@ -8,6 +8,14 @@ namespace HappyHoliday.Tests;
 public sealed class BookingRulesTests
 {
     [TestMethod]
+    public void ServiceCapacityCountsPeakUnitsAndReleasesAdjacentSlots()
+    {
+        var start = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var intervals = new[] { (start, start.AddHours(1), 3), (start.AddHours(1), start.AddHours(2), 3), (start.AddMinutes(30), start.AddMinutes(90), 2) };
+        Assert.AreEqual(5L, BookingRules.PeakUnits(intervals, start, start.AddHours(2)));
+        Assert.AreEqual(3L, BookingRules.PeakUnits(intervals, start.AddMinutes(90), start.AddHours(2)));
+    }
+    [TestMethod]
     public void DisjointBookingsDoNotConsumeSimultaneousSlots()
     {
         var start = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);

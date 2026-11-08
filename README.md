@@ -5,8 +5,9 @@ Contains both a React frontend and a .NET Core Backend API.
 
 ## Frontend Features
 
-- **Client workspace**: Overview, venue search, rental dates and service quantities, itemized price review, bookings, cancellation of pending/unpaid orders, and saved contact details.
-- **Manager workspace**: Assigned orders and client contacts, real venue occupancy by period, and order summaries.
+- **Client workspace**: Venue search, itemized quotes, demo checkout, bookings, change requests before the seven-day deadline, invoice history, and saved contact details.
+- **Manager workspace**: Operations worklist, change approvals, paid execution schedules, staff brief dispatch, and live venue/service/staff monitoring.
+- **Service staff workspace**: Private execution briefs, acknowledgment, activity start, and completion updates.
 - **Administrator workspace**: Venue/service catalogue, staff accounts and manager client limits, plus all orders and clients.
 - **UI/UX**: Responsive navigation, accessible dialogs, explicit loading/error/empty states, and accurate feedback after server-confirmed actions.
 
@@ -25,11 +26,13 @@ The API URL defaults to `http://localhost:5294/api`; set `VITE_API_URL` before s
 
 ## Backend API
 
-The API supports JWT bearer authentication and `client`, `manager`, and `admin` roles.
+The API supports JWT bearer authentication and `client`, `manager`, `admin`, and `staff` roles.
 Sprint 2 ordering, profiles, manager quotas, occupancy and pricing are implemented.
 See [backend API, review findings and migration instructions](docs/backend-sprint2.md).
 
 Sprint 3 adds suitable venue alternatives, configurable rental promotions, immutable invoices, delivery to the client portal, and development-only demo checkout with payment receipts. Real money is not charged. Production demo payments are always disabled. See [Sprint 3 workflow, migration and verification](docs/sprint3.md).
+
+Sprint 4 adds booking revisions, payment differences and demo credits, execution scheduling and private staff briefs, concurrent service capacity, and an operations dashboard. The change cutoff defaults to **7 days before the event**. See [Sprint 4 stories, migration, and demonstration](docs/sprint4.md).
 
 ### Run
 ```powershell

@@ -83,6 +83,7 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
         ModelState.ClearValidationState(string.Empty);
         if (!TryValidateModel(updatedService)) return ValidationProblem(ModelState);
 
+        await using var transaction = await HappyHoliday.Services.BookingTransaction.BeginAsync(database, cancellationToken);
         var service = await database.EventServices.FindAsync(new object[] { id }, cancellationToken);
         if (service is null)
         {
@@ -93,8 +94,19 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
         service.Description = updatedService.Description;
         service.Category = updatedService.Category;
         service.Price = updatedService.Price;
+        if (updatedService.ConcurrentCapacity is { } capacity)
+        {
+            var now = DateTime.UtcNow;
+            var reservations = await database.OrderServices.Where(s => s.EventServiceId == id && s.Order!.Status != "cancelled"
+                && s.Order.Status != "completed" && s.Order.EndDate > now)
+                .Select(s => new { s.Quantity, s.Order!.EventDate, s.Order.EndDate }).ToListAsync(cancellationToken);
+            if (HappyHoliday.Services.BookingRules.PeakUnits(reservations.Select(r => (r.EventDate, r.EndDate, r.Quantity)), now, DateTime.MaxValue) > capacity)
+                return Conflict(new ProblemDetails { Detail = "Capacity cannot be lower than the units already reserved at the same time." });
+        }
+        service.ConcurrentCapacity = updatedService.ConcurrentCapacity;
 
         await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return NoContent();
     }
 

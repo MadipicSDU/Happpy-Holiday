@@ -11,6 +11,47 @@ namespace HappyHoliday.Tests;
 public sealed class MigrationTests
 {
     [TestMethod]
+    public async Task Sprint4UpgradeBackfillsOnlyRecordedPayments()
+    {
+        var connection = Environment.GetEnvironmentVariable("HAPPYHOLIDAY_TEST_POSTGRES");
+        if (string.IsNullOrWhiteSpace(connection)) Assert.Inconclusive("Set HAPPYHOLIDAY_TEST_POSTGRES for migration tests.");
+        var name = "hh_test_" + Guid.NewGuid().ToString("N");
+        await using var admin = new NpgsqlConnection(connection); await admin.OpenAsync();
+        await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", admin)) await create.ExecuteNonQueryAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(new NpgsqlConnectionStringBuilder(connection) { Database = name }.ConnectionString).Options;
+            await using var db = new AppDbContext(options);
+            await db.GetService<IMigrator>().MigrateAsync("20261027084341_CancellationAudit");
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO users ("Id","DisplayName","Email","NormalizedEmail","PasswordHash","Role","CreatedAt","ClientLimit")
+                    VALUES ('00000000-0000-0000-0000-000000000001','Migration client','migration@test.local','MIGRATION@TEST.LOCAL','hash','client',now(),10);
+                INSERT INTO premises ("Id","Name","Address","Capacity","PricePerHour","CreatedAt")
+                    VALUES ('00000000-0000-0000-0000-000000000002','Migration hall','Migration street',100,100,now());
+                INSERT INTO orders ("Id","ClientId","PremiseId","EventDate","EndDate","ExpectedGuests","Status","TotalAmount","PremiseName","PremiseAddress","RentalRate","RentalAmount","LegacyEstimate")
+                    SELECT id,'00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002',now()+interval '1 month',now()+interval '1 month 4 hours',10,'confirmed',400,'Migration hall','Migration street',100,400,false
+                    FROM (VALUES ('ORD-PAID'),('ORD-NORECEIPT')) AS sample(id);
+                INSERT INTO invoices ("Id","Number","OrderId","ClientName","ClientEmail","PricingJson","TotalAmount","CreatedAt","DeliveredAt")
+                    VALUES ('00000000-0000-0000-0000-000000000003','INV-MIGRATION','ORD-PAID','Migration client','migration@test.local','{{}}',400,now(),now());
+                INSERT INTO payments ("Id","InvoiceId","IdempotencyKey","Amount","PaidAt","Reference","IsDemo")
+                    VALUES ('00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000005',400,now(),'DEMO-MIGRATION',true);
+                """);
+            await db.Database.MigrateAsync();
+            var paid = await db.Orders.SingleAsync(o => o.Id == "ORD-PAID");
+            Assert.AreEqual(400m, paid.PaidAmount); Assert.IsNotNull(paid.PaymentConfirmedAt);
+            Assert.AreEqual(paid.PaymentConfirmedAt, (await db.Invoices.SingleAsync()).SettledAt);
+            var legacy = await db.Orders.SingleAsync(o => o.Id == "ORD-NORECEIPT");
+            Assert.AreEqual(0m, legacy.PaidAmount); Assert.IsNull(legacy.PaymentConfirmedAt);
+            Assert.AreEqual(1, await db.Payments.CountAsync()); Assert.IsFalse(db.Database.HasPendingModelChanges());
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", admin); await drop.ExecuteNonQueryAsync();
+        }
+    }
+
+    [TestMethod]
     public async Task UpgradePreservesLegacyTotalsAndSupportsEnsureCreatedBaseline()
     {
         var connection = Environment.GetEnvironmentVariable("HAPPYHOLIDAY_TEST_POSTGRES");
@@ -47,6 +88,10 @@ public sealed class MigrationTests
             Assert.AreEqual(456.78m, order.RentalAmount);
             Assert.AreEqual(TimeSpan.FromHours(4), order.EndDate - order.EventDate);
             Assert.IsTrue(order.LegacyEstimate);
+            Assert.AreEqual(1, order.Revision);
+            Assert.AreEqual(168, order.ChangeCutoffHours);
+            Assert.AreEqual(0m, order.PaidAmount);
+            Assert.IsNull(order.PaymentConfirmedAt);
             Assert.IsNull(order.CancelledAt);
             Assert.IsNull(order.CancelledByUserId);
             Assert.IsNull(order.CancelledByName);

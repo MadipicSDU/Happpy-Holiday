@@ -1,5 +1,6 @@
 using System.Text;
 using HappyHoliday.Authentication;
+using HappyHoliday.Contracts;
 using HappyHoliday.Data;
 using HappyHoliday.Models;
 using HappyHoliday.Options;
@@ -92,6 +93,8 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IUserRepository, PostgresUserRepository>();
 builder.Services.AddScoped<OrderingService>();
+builder.Services.AddScoped<BillingService>();
+builder.Services.AddOptions<OrderChangeOptions>().Bind(builder.Configuration.GetSection("OrderChanges")).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();

@@ -73,8 +73,8 @@ public sealed class AuthController(
         CreateStaffRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Role is not (UserRoles.Manager or UserRoles.Admin))
-            return BadRequest(new ProblemDetails { Detail = "Staff role must be manager or admin." });
+        if (request.Role is not (UserRoles.Manager or UserRoles.Admin or UserRoles.Staff))
+            return BadRequest(new ProblemDetails { Detail = "Choose manager, admin, or service staff." });
         var result = await RegisterUserAsync(
             new RegisterRequest { DisplayName = request.DisplayName, Email = request.Email, Password = request.Password, Phone = request.Phone },
             request.Role,

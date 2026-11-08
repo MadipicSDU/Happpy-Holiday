@@ -27,7 +27,7 @@ public sealed class PaymentPolicyTests
         {
             using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Payments:AllowDemo"] = enabled }).Build();
-            var controller = new InvoicesController(db, TimeProvider.System, new EnvironmentStub(environment), config);
+            var controller = new InvoicesController(db, TimeProvider.System, new EnvironmentStub(environment), config, new BillingService(db));
             try { await controller.Pay("example", new PayInvoiceDto(Guid.NewGuid()), CancellationToken.None); Assert.Fail("Payment must be disabled."); }
             catch (BookingException error) { Assert.AreEqual(503, error.Status); }
         }

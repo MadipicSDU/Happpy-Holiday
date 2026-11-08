@@ -21,7 +21,7 @@ public sealed record OrderQuote(Guid PremiseId, string PremiseName, string Addre
     DateTime EndsAt, decimal DurationHours, PriceLine Rental, IReadOnlyList<PriceLine> Services, decimal TotalAmount,
     string Currency = "KZT", bool LegacyEstimate = false, decimal RentalDiscount = 0, decimal PromotionPercent = 0);
 
-public sealed record PayInvoiceDto(Guid IdempotencyKey, string Outcome = "success");
+public sealed record PayInvoiceDto(Guid IdempotencyKey, string Outcome = "success", Guid? InvoiceId = null);
 public sealed class AvailabilityDto
 {
     public Guid PremiseId { get; init; }
@@ -32,7 +32,9 @@ public sealed class AvailabilityDto
 }
 public sealed record OrderResponse(string Id, Guid ClientId, string? Client, Guid? ManagerId, Guid PremiseId,
     string Venue, string Address, string EventDate, DateTime StartsAt, DateTime EndsAt, string Status,
-    string StatusLabel, string Amount, decimal TotalAmount, int Guests, OrderQuote Pricing, OrderCancellation? Cancellation = null);
+    string StatusLabel, string Amount, decimal TotalAmount, int Guests, OrderQuote Pricing, OrderCancellation? Cancellation = null,
+    int Revision = 1, DateTime? ChangeDeadline = null, Guid? PendingChangeId = null, decimal PaidAmount = 0,
+    DateTime? PaymentConfirmedAt = null, string ExecutionState = "not-planned");
 public sealed record OrderCancellation(Guid UserId, string Name, string Role, DateTime At);
 public sealed record UpdateStatusDto([Required] string Status);
 

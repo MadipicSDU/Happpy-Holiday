@@ -12,6 +12,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<OrderService> OrderServices => Set<OrderService>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<OrderChange> OrderChanges => Set<OrderChange>();
+    public DbSet<ExecutionPlan> ExecutionPlans => Set<ExecutionPlan>();
+    public DbSet<ExecutionTask> ExecutionTasks => Set<ExecutionTask>();
+    public DbSet<ExecutionBrief> ExecutionBriefs => Set<ExecutionBrief>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +60,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         order.Property(item => item.TotalAmount).HasColumnType("decimal(18,2)").IsRequired();
         order.Property(item => item.RentalRate).HasPrecision(18, 2);
         order.Property(item => item.RentalAmount).HasPrecision(18, 2);
+        order.Property(item => item.PaidAmount).HasPrecision(18, 2);
+        order.Property(item => item.Revision).HasDefaultValue(1);
+        order.Property(item => item.ChangeCutoffHours).HasDefaultValue(168);
+        order.Property(item => item.ExecutionState).HasDefaultValue("not-planned");
         order.Property(item => item.RentalDiscount).HasPrecision(18, 2);
         order.Property(item => item.PromotionPercent).HasPrecision(5, 2);
         premise.Property(item => item.PromotionPercent).HasPrecision(5, 2);
@@ -74,9 +82,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
         var invoice = modelBuilder.Entity<Invoice>();
         invoice.ToTable("invoices");
-        invoice.HasIndex(i => i.OrderId).IsUnique();
+        invoice.HasIndex(i => new { i.OrderId, i.Revision }).IsUnique();
         invoice.HasIndex(i => i.Number).IsUnique();
         invoice.Property(i => i.TotalAmount).HasPrecision(18, 2);
+        invoice.Property(i => i.PreviousPaidAmount).HasPrecision(18, 2);
+        invoice.Property(i => i.Revision).HasDefaultValue(1);
+        invoice.Property(i => i.DocumentType).HasDefaultValue("invoice");
         invoice.Property(i => i.ClientName).HasMaxLength(100);
         invoice.Property(i => i.ClientEmail).HasMaxLength(254);
         invoice.HasOne(i => i.Order).WithMany().HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Restrict);
@@ -87,5 +98,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         payment.HasIndex(p => p.IdempotencyKey).IsUnique();
         payment.HasIndex(p => p.Reference).IsUnique();
         payment.HasOne(p => p.Invoice).WithMany().HasForeignKey(p => p.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+
+        var change = modelBuilder.Entity<OrderChange>();
+        change.ToTable("order_changes");
+        change.Property(c => c.PriceDelta).HasPrecision(18, 2);
+        change.HasOne(c => c.Order).WithMany().HasForeignKey(c => c.OrderId).OnDelete(DeleteBehavior.Restrict);
+        change.HasIndex(c => c.OrderId).IsUnique().HasFilter("\"Status\" = 'pending'");
+        var plan = modelBuilder.Entity<ExecutionPlan>();
+        plan.ToTable("execution_plans");
+        plan.HasOne(p => p.Order).WithMany().HasForeignKey(p => p.OrderId).OnDelete(DeleteBehavior.Restrict);
+        plan.HasIndex(p => new { p.OrderId, p.OrderRevision }).IsUnique();
+        var task = modelBuilder.Entity<ExecutionTask>();
+        task.ToTable("execution_tasks");
+        task.HasOne(t => t.Plan).WithMany(p => p.Tasks).HasForeignKey(t => t.PlanId).OnDelete(DeleteBehavior.Cascade);
+        task.HasIndex(t => new { t.StaffId, t.StartsAt, t.EndsAt });
+        var brief = modelBuilder.Entity<ExecutionBrief>();
+        brief.ToTable("execution_briefs");
+        brief.HasOne(b => b.Plan).WithMany().HasForeignKey(b => b.PlanId).OnDelete(DeleteBehavior.Restrict);
+        brief.HasIndex(b => new { b.PlanId, b.PlanVersion, b.TaskId }).IsUnique();
+        brief.HasIndex(b => new { b.StaffId, b.SupersededAt });
     }
 }

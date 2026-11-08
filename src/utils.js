@@ -25,7 +25,7 @@ export function bookingPayload(venue, startsAt, endsAt, guests, quantities) {
   return { premiseId: venue.id, startsAt: start.toISOString(), endsAt: end.toISOString(), guests: Number(guests), services };
 }
 export const statusNames = { pending: 'Pending review', 'awaiting-payment': 'Awaiting payment', confirmed: 'Confirmed', 'change-requested': 'Change requested', completed: 'Completed', cancelled: 'Cancelled' };
-export const cancellable = order => ['pending', 'awaiting-payment'].includes(order.status);
+export const cancellable = order => ['pending', 'awaiting-payment'].includes(order.status) && !(order.paidAmount > 0);
 export const activeOrder = order => !['completed', 'cancelled'].includes(order.status);
 export { serviceCategoryName as categoryName } from './serviceCatalogue.js';
 export function nextOrder(orders, now = new Date()) {

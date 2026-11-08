@@ -104,7 +104,8 @@ public sealed class UsersController(IUserRepository users, AppDbContext db) : Co
     {
         var managers = await users.GetByRoleAsync(UserRoles.Manager, ct);
         var admins = await users.GetByRoleAsync(UserRoles.Admin, ct);
-        var staff = managers.Concat(admins).ToList();
+        var performers = await users.GetByRoleAsync(UserRoles.Staff, ct);
+        var staff = managers.Concat(admins).Concat(performers).ToList();
 
         return Ok(staff.Select(u => new
         {
@@ -122,7 +123,7 @@ public sealed class UsersController(IUserRepository users, AppDbContext db) : Co
     [Authorize(Roles = UserRoles.Admin)]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserDto dto, CancellationToken ct)
     {
-        if (dto.Role is not (UserRoles.Client or UserRoles.Manager or UserRoles.Admin)
+        if (dto.Role is not (UserRoles.Client or UserRoles.Manager or UserRoles.Admin or UserRoles.Staff)
             || string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length < 2)
             return BadRequest(new ProblemDetails { Detail = "Supply a valid name and role." });
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
@@ -131,7 +132,8 @@ public sealed class UsersController(IUserRepository users, AppDbContext db) : Co
         var normalized = PostgresUserRepository.NormalizeEmail(dto.Email);
         if (await db.Users.AnyAsync(u => u.Id != id && u.NormalizedEmail == normalized, ct))
             return Conflict(new ProblemDetails { Detail = "Email already registered." });
-        if (user.Role != dto.Role && await db.Orders.AnyAsync(o => o.ClientId == id || o.ManagerId == id, ct))
+        if (user.Role != dto.Role && (await db.Orders.AnyAsync(o => o.ClientId == id || o.ManagerId == id, ct)
+            || await db.ExecutionTasks.AnyAsync(t => t.StaffId == id, ct) || await db.ExecutionBriefs.AnyAsync(b => b.StaffId == id, ct)))
             return Conflict(new ProblemDetails { Detail = "Users with order history cannot change roles." });
         if (user.Role == UserRoles.Admin && dto.Role != UserRoles.Admin
             && await db.Users.CountAsync(u => u.Role == UserRoles.Admin, ct) == 1)
@@ -158,7 +160,8 @@ public sealed class UsersController(IUserRepository users, AppDbContext db) : Co
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
         var user = await users.FindByIdAsync(id, ct);
         if (user is null) return NotFound();
-        if (await db.Orders.AnyAsync(o => o.ClientId == id || o.ManagerId == id, ct))
+        if (await db.Orders.AnyAsync(o => o.ClientId == id || o.ManagerId == id, ct)
+            || await db.ExecutionTasks.AnyAsync(t => t.StaffId == id, ct) || await db.ExecutionBriefs.AnyAsync(b => b.StaffId == id, ct))
             return Conflict(new ProblemDetails { Detail = "Users with booking history cannot be deleted." });
         if (user.Role == UserRoles.Admin && await db.Users.CountAsync(u => u.Role == UserRoles.Admin, ct) == 1)
             return Conflict(new ProblemDetails { Detail = "The last administrator cannot be deleted." });
