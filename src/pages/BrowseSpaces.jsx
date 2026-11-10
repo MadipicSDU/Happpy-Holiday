@@ -13,7 +13,7 @@ export default function BrowseSpaces({ venues, availableServices, token, onBookS
   const [search, setSearch] = useState(''), [capacity, setCapacity] = useState('');
   const [venue, setVenue] = useState(null), [startsAt, setStartsAt] = useState(''), [endsAt, setEndsAt] = useState(''), [guests, setGuests] = useState('');
   const [quantities, setQuantities] = useState({}), [quote, setQuote] = useState(null), [payload, setPayload] = useState(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [step, setStep] = useState('details');
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [step, setStep] = useState('period');
   const [alternativeRequest, setAlternativeRequest] = useState(null);
   const controller = useRef(null), reviewTitle = useRef(null), bookingForm = useRef(null), alternatives = useRef(null);
   useEffect(() => () => controller.current?.abort(), []);
@@ -25,8 +25,13 @@ export default function BrowseSpaces({ venues, availableServices, token, onBookS
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(14, 0, 0, 0);
     const end = new Date(tomorrow); end.setHours(18);
     setVenue(item); setStartsAt(localInput(tomorrow)); setEndsAt(localInput(end)); setGuests(Math.min(50, item.capacity));
-    setQuantities({}); setError(''); setQuote(null); setPayload(null); setStep('details');
+    setQuantities({}); setError(''); setQuote(null); setPayload(null); setStep('period');
     setAlternativeRequest(null);
+  };
+  const next = event => {
+    event.preventDefault(); if (busy) return;
+    try { bookingPayload(venue, startsAt, endsAt, guests, quantities); setError(''); setStep('services'); }
+    catch (err) { setError(err.message); }
   };
   const review = async event => {
     event.preventDefault(); if (busy) return;
@@ -40,6 +45,7 @@ export default function BrowseSpaces({ venues, availableServices, token, onBookS
     } catch (err) {
       if (err.name !== 'AbortError') { failed = true; setError(err.message); }
       setAlternativeRequest(err.status === 409 && body ? body : null);
+      if (err.status === 409 || err.status === 400) setStep('period');
     } finally {
       setBusy(false);
       if (failed) requestAnimationFrame(() => { if (submitter?.isConnected) submitter.focus({ preventScroll: true }); });
@@ -63,7 +69,7 @@ export default function BrowseSpaces({ venues, availableServices, token, onBookS
     if (busy || !quote || !payload) return; setBusy(true); setError('');
     try { await onBookSpace(payload); setVenue(null); }
     catch (err) {
-      setStep('details'); setQuote(null);
+      setStep('period'); setQuote(null);
       setError(err.message + (err.status === 0 ? ' Refresh your bookings before retrying if the connection was interrupted.' : ''));
       if (err.status === 409 && payload) setAlternativeRequest(payload);
     } finally { setBusy(false); }
@@ -73,17 +79,21 @@ export default function BrowseSpaces({ venues, availableServices, token, onBookS
     <div className="venue-grid">{pagination.items.map(item => <article className="venue-card" key={item.id}><div className="venue-visual"><VenueArt venue={item} /><span className="capacity-badge"><Users size={14} />Up to {item.capacity} guests</span></div><div className="venue-card-body"><p className="eyebrow">Event space</p><h2>{item.name}</h2><p className="venue-address"><MapPin size={15} />{item.address}</p><p className="venue-description">{item.description || 'Choose your dates to check availability and build your package.'}</p><div className="venue-card-footer"><div><strong>{money(item.pricePerHour)}</strong><span>per rental hour</span>{item.promotionPercent > 0 && <span className="promotion-label">{item.promotionPercent}% off venue rental</span>}</div><button className="button secondary" onClick={() => open(item)}>Plan booking<ArrowUpRightIcon /></button></div></div></article>)}</div>
     <Pagination pagination={pagination} />
     {!filtered.length && <EmptyState title={venues.length ? 'No venues match your search' : 'The catalogue is currently empty'} description={venues.length ? 'Try a different location or a smaller guest capacity.' : 'Check back when new spaces have been added.'} action={venues.length ? <button className="button secondary" onClick={() => { setSearch(''); setCapacity(''); }}>Clear filters</button> : null} />}
-    <Modal isOpen={Boolean(venue)} onClose={() => setVenue(null)} title={step === 'details' ? 'Build your booking' : 'Review your order'} busy={busy} wide
+    <Modal isOpen={Boolean(venue)} onClose={() => setVenue(null)} title="Book a venue" busy={busy} wide steps
+      tabs={[{ id: 'period', label: 'Date & guests' }, { id: 'services', label: 'Services' }, { id: 'review', label: 'Review & submit', disabled: !quote }]}
+      activeTab={step} onTabChange={id => { if (id === 'review' && !quote) return; setError(''); if (id !== 'review') setQuote(null); setStep(id); }}
       sidePanel={venue && <BookingSummary key={venue.id} venue={venue} services={availableServices} startsAt={startsAt} endsAt={endsAt} guests={guests} quantities={quantities} quote={step === 'review' ? quote : null} />}
-      footer={<>{error && <div className="booking-feedback" aria-busy={busy}><ErrorNotice message={error} />{alternativeRequest && <button type="button" className="text-button" disabled={busy} onClick={showAlternatives}>View alternatives<ArrowRight size={16} /></button>}</div>}
-        {step === 'review' ? <><button className="button secondary" disabled={busy} onClick={() => { setStep('details'); setQuote(null); setError(''); }}><ArrowLeft size={16} />Edit details</button><button className="button primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit for manager review'}<ArrowRight size={17} /></button></> : <><span className="small muted">Ready to check your dates?</span><button className="button primary" type="submit" form="booking-form" disabled={busy}>{busy ? 'Checking dates and price…' : 'Review price'}<ArrowRight size={17} /></button></>}</>}>
-      {venue && step === 'details' && <form ref={bookingForm} id="booking-form" onSubmit={review} className="booking-layout"><div><div className="selected-venue"><VenueArt venue={venue} compact /><div><h3>{venue.name}</h3><p className="muted small">{venue.address}</p><span className="small">{money(venue.pricePerHour)} / hour · Up to {venue.capacity} guests</span></div></div>
-        <fieldset disabled={busy}><div className="section-heading"><h3><span className="step-number">1</span>Your rental period</h3></div><p className="field-help">Local time · {zone()}. Overnight and multi-day rentals are supported.</p><div className="form-row"><label className="field">Start date & time<input type="datetime-local" required min={localInput(new Date())} value={startsAt} onInput={event => setStartsAt(event.target.value)} /></label><label className="field">End date & time<input type="datetime-local" required min={startsAt} value={endsAt} onInput={event => setEndsAt(event.target.value)} /></label></div><label className="field">Expected guests<input type="number" min={1} max={venue.capacity} step={1} required value={guests} onChange={event => setGuests(event.target.value)} /><span className="field-help">Maximum capacity: {venue.capacity} guests.</span></label>
-</fieldset><p className="small muted">Submit each venue as a separate order. You can reserve up to three venues at any one time.</p></div>
-        <ServicePicker services={availableServices} quantities={quantities} onChange={setQuantities} guests={guests} disabled={busy} />
+      footer={step === 'period' ? <><button type="button" className="button secondary" disabled={busy} onClick={() => setVenue(null)}>Cancel</button><button className="button primary" type="submit" form="booking-form" disabled={busy}>Next: services<ArrowRight size={17} /></button></>
+        : step === 'services' ? <><button type="button" className="button secondary" disabled={busy} onClick={() => { setError(''); setStep('period'); }}><ArrowLeft size={16} />Back</button><button className="button primary" type="submit" form="booking-form" disabled={busy}>{busy ? 'Checking dates and price…' : 'Review price'}<ArrowRight size={17} /></button></>
+        : <><button type="button" className="button secondary" disabled={busy} onClick={() => { setStep('services'); setQuote(null); setError(''); }}><ArrowLeft size={16} />Back</button><button type="button" className="button primary" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit for manager review'}<ArrowRight size={17} /></button></>}>
+      {venue && <div className="booking-feedback" aria-busy={busy}><ErrorNotice message={error} />{alternativeRequest && step === 'period' && <button type="button" className="text-button" disabled={busy} onClick={showAlternatives}>View alternative venues<ArrowRight size={16} /></button>}</div>}
+      {venue && step === 'period' && <form ref={bookingForm} id="booking-form" onSubmit={next} className="booking-layout" noValidate><div><div className="selected-venue"><VenueArt venue={venue} compact /><div><h3>{venue.name}</h3><p className="muted small">{venue.address}</p><span className="small">{money(venue.pricePerHour)} / hour · Up to {venue.capacity} guests</span></div></div>
+        <fieldset disabled={busy}><div className="section-heading"><h3>Rental period</h3></div><p className="field-help">Local time · {zone()}. Overnight and multi-day rentals are supported.</p><div className="form-row"><label className="field">Start date & time<input type="datetime-local" required min={localInput(new Date())} value={startsAt} onInput={event => setStartsAt(event.target.value)} /></label><label className="field">End date & time<input type="datetime-local" required min={startsAt} value={endsAt} onInput={event => setEndsAt(event.target.value)} /></label></div><label className="field">Expected guests<input type="number" min={1} max={venue.capacity} step={1} required value={guests} onChange={event => setGuests(event.target.value)} /><span className="field-help">Maximum capacity: {venue.capacity} guests.</span></label>
+        </fieldset><p className="small muted">Submit each venue as a separate order. You can reserve up to three venues at any one time.</p></div>
       </form>}
-      {venue && step === 'details' && alternativeRequest && <div ref={alternatives} tabIndex={-1} role="region" aria-label="Alternative venues"><AlternativeVenues token={token} request={alternativeRequest} onChoose={chooseAlternative} /></div>}
-      {step === 'review' && quote && <div className="review-layout"><div><h3 ref={reviewTitle} tabIndex={-1} className="review-title">{quote.premiseName}</h3><p className="muted">{quote.address}</p><dl className="details-grid"><div><dt>Rental period</dt><dd>{period(quote)}</dd></div><div><dt>Guest count</dt><dd>{payload.guests}</dd></div></dl><p className="small muted">Times shown in {zone()}.</p><div className="notice notice-info"><Check size={19} /><span>Dates were available when this price was calculated. We will check again on submission.</span></div><p className="small muted">Check your package in the receipt. Submission creates a pending booking for manager review.</p></div></div>}
+      {venue && step === 'services' && <form ref={bookingForm} id="booking-form" onSubmit={review} className="booking-layout"><ServicePicker services={availableServices} quantities={quantities} onChange={setQuantities} guests={guests} disabled={busy} /></form>}
+      {venue && step === 'period' && alternativeRequest && <div ref={alternatives} tabIndex={-1} role="region" aria-label="Alternative venues"><AlternativeVenues token={token} request={alternativeRequest} onChoose={chooseAlternative} /></div>}
+      {step === 'review' && quote && <div className="review-layout"><div><h3 ref={reviewTitle} tabIndex={-1} className="review-title">{quote.premiseName}</h3><p className="muted">{quote.address}</p><dl className="details-grid"><div><dt>Rental period</dt><dd>{period(quote)}</dd></div><div><dt>Guest count</dt><dd>{payload.guests}</dd></div></dl><p className="small muted">Times shown in {zone()}.</p><div className="notice notice-info"><Check size={19} /><span>Dates were available when this price was calculated. We will check again on submission.</span></div><p className="small muted">Check your package in the receipt on the right. Submission creates a pending booking for manager review. No payment is taken now.</p></div></div>}
     </Modal>
   </>;
 }
