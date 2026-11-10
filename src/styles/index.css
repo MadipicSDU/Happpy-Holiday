@@ -614,3 +614,60 @@ td > .short-reference { display: block; margin-top: 4px; } .period-cell { font-s
   .operations-worklist td:first-child strong { font-size: 14px; }
   .operations-worklist td:last-child .button { width: 100%; }
 }
+/* ── Modal tabs / steps (stakeholder review: split long dialogs into short sections) ── */
+.modal-tabs { display: flex; gap: 26px; padding: 0 26px; border-bottom: 1px solid var(--line); flex-shrink: 0; background: white; }
+.modal-tab { border: 0; background: none; padding: 14px 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 8px; }
+.modal-tab:hover:not(:disabled) { color: var(--ink); }
+.modal-tab.active { color: var(--ink); border-bottom-color: var(--green); }
+.modal-tab:disabled { opacity: .45; }
+.modal-tab-index { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #eaece6; color: var(--muted); font-size: 11px; }
+.modal-tab.active .modal-tab-index { background: var(--green); color: white; }
+.modal-tab.done .modal-tab-index { background: #dcebe1; color: var(--green); }
+.modal-tabs.is-steps .modal-tab:not(:last-child)::after { content: ''; width: 28px; height: 1px; background: var(--line); margin-left: 18px; }
+.modal-tab-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: #f9ecde; color: #925e1f; }
+.modal-tab-badge.tone-confirmed { background: #e8f2e9; color: #356847; } .modal-tab-badge.tone-cancelled { background: #f7e9e7; color: #96524b; }
+.modal-tabbed:not(.modal-with-sidepanel) .modal-body { min-height: 440px; }
+.modal-footer { justify-content: flex-end; }
+.button.danger-outline { background: white; color: var(--red); border-color: #e3c3bf; } .button.danger-outline:hover:not(:disabled) { background: #f9eeec; }
+.booking-feedback:not(:has(.notice)) { display: none; }
+.booking-feedback { margin-bottom: 18px; }
+.tab-empty { text-align: center; padding: 48px 24px; max-width: 420px; margin: 0 auto; }
+.tab-empty p { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.payment-success { text-align: center; max-width: 460px; margin: 0 auto; padding: 20px 0; }
+.payment-success-icon { width: 60px; height: 60px; border-radius: 50%; background: #e8f2e9; color: #356847; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.payment-success > .muted { margin: 6px 0 22px; font-size: 13px; }
+.receipt-lines { text-align: left; border: 1px solid var(--line); border-radius: 10px; margin: 0 0 14px; padding: 4px 18px; }
+.receipt-lines > div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.receipt-lines > div:last-child { border-bottom: 0; } .receipt-lines dt { color: var(--muted); } .receipt-lines dd { margin: 0; font-weight: 600; text-align: right; }
+.invoice-panel > .section-heading { margin-bottom: 14px; }
+.demo-payment { margin-top: 0; }
+.invoice-panel > .section-heading:first-child, .modal-body > .section-heading:first-child { margin-top: 0; }
+.modal-tabbed .invoice-panel, .modal-tabbed .alternatives-panel { border-top: 0; margin-top: 0; padding-top: 0; }
+.modal-tabbed .alternatives-panel > .section-heading:first-child { margin-top: 0; }
+.modal-tabbed:not(.modal-with-sidepanel) { height: min(780px, calc(100dvh - 56px)); }
+.modal-tabbed:not(.modal-with-sidepanel) .modal-body { flex: 1; }
+/* booking steps: compact catalogue so the services step fits on one screen */
+.modal-tabbed .service-picker { border-top: 0; padding-top: 0; }
+.modal-tabbed .service-picker .step-number { display: none; }
+.modal-tabbed .service-picker > .section-heading:first-child { margin-top: 0; }
+.modal-tabbed .service-card-grid { gap: 12px; }
+.modal-tabbed .service-tile-art { min-height: 0; padding: 9px 16px; }
+.modal-tabbed .service-tile-body { padding: 12px 16px 14px; }
+.modal-tabbed .service-tile-body > p { margin: 4px 0 10px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* alternatives inside dialogs: compact list, no photos, action aligned right */
+.modal-tabbed .alternatives-panel .alternative-photo { display: none; }
+.modal-tabbed .alternatives-panel .service-tile-body { padding: 14px 16px; }
+.modal-tabbed .alternatives-panel .service-tile-body > p { margin: 3px 0 8px; }
+.modal-tabbed .alternatives-panel .service-tile-body > .button { align-self: flex-end; margin-top: 10px; padding: 8px 14px; font-size: 12px; }
+.modal-tabbed [role="region"][aria-label="Alternative venues"] { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 24px; }
+/* stakeholder review: stronger focus on the open dialog */
+.modal-overlay { background: rgba(10, 22, 17, .66); backdrop-filter: blur(6px) brightness(.9); }
+.modal-content { box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px rgba(0,0,0,.38), 0 8px 24px rgba(0,0,0,.18); }
+
+/* Design review v1 × Sprint 4: workflow panels live in their own dialog tabs */
+.modal-body > .workflow-panel { margin-top: 0; padding-top: 0; border-top: 0; }
+.modal-body > .workflow-panel > .section-heading { margin-bottom: 18px; }
+.workflow-actions { justify-content: flex-end; }
+.change-request-card .workflow-actions, .change-request-form .workflow-actions { padding-top: 16px; border-top: 1px solid var(--line); }
+.invoice-panel > .workflow-details { margin-top: 22px; }
+.modal-footer .footer-slot { display: contents; }

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Error catalogue — Happy Holiday</title>
+<link rel="stylesheet" href="/src/styles/index.css" />
+<style>
+  body { background: var(--paper); }
+  .cat { width: 1440px; padding: 64px 72px 80px; }
+  .cat h1 { margin: 6px 0 10px; }
+  .cat .lead { color: var(--muted); max-width: 760px; font-size: 14px; }
+  .patterns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 34px 0 44px; }
+  .pattern { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .pattern h3 { font-size: 14px; display: flex; gap: 10px; align-items: center; }
+  .pattern p { font-size: 12px; color: var(--muted); }
+  .pattern .notice, .pattern .toast { margin: 0; }
+  .pattern .toast { position: static; width: 100%; box-shadow: none; }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .4px; padding: 3px 8px; border-radius: 99px; background: var(--pale); color: var(--green); text-transform: uppercase; }
+  .group { margin-top: 34px; }
+  .group > h2 { margin-bottom: 14px; display: flex; gap: 12px; align-items: baseline; }
+  .group > h2 span { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  table.errs { width: 100%; table-layout: fixed; border-collapse: collapse; background: white; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 12px; }
+  table.errs th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); background: #f3f5f1; padding: 11px 16px; font-weight: 600; }
+  table.errs td { padding: 12px 16px; border-top: 1px solid var(--line); vertical-align: top; }
+  table.errs td.msg { font-weight: 600; color: var(--ink); }
+  .code { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: #f7e9e7; color: #96524b; white-space: nowrap; }
+  .code.client { background: #eef0f7; color: #4b5596; }
+  .code.warn { background: #f9ecde; color: #925e1f; }
+  .field-demo input { width: 100%; border-color: var(--red); background: #fff9f7; }
+  .rules { margin-top: 44px; background: white; border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; }
+  .rules ol { margin: 12px 0 0; padding-left: 0; list-style: none; font-size: 13px; display: grid; gap: 8px; }
+</style>
+</head>
+<body>
+<main class="cat" id="cat"></main>
+<script>
+const I = {
+  alert: '<svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
+  x: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+};
+// pattern ids → how the message is displayed
+const P = {
+  field: 'Inline field error', notice: 'Error notice (in form / dialog)', page: 'Page notice + Try again', toast: 'Toast', signin: 'Sign-in warning', disabled: 'Warning notice',
+};
+const G = [
+  ['Sign in & account', 'Auth, Register, Profile, Staff', [
+    ['The email or password is incorrect. Please try again.', '401', 'Sign in', 'notice', 'Wrong email or password'],
+    ['Too many attempts. Please wait a minute and try again.', '429', 'Sign in, Register', 'notice', 'Rate limit reached'],
+    ['An account with this email address already exists.', '409', 'Register, Profile, Add staff', 'notice', 'Email is already used'],
+    ['No manager has capacity for another client. Please try later.', '409', 'Register', 'notice', 'All managers are at their client limit'],
+    ['Display name must contain at least two characters.', '400', 'Profile', 'notice', 'Name shorter than 2 characters'],
+    ['Your session has expired. Please sign in again.', '401', 'Any page → Sign in', 'signin', 'Token expired during use'],
+  ]],
+  ['Booking a venue', 'Book a venue · steps 1–3', [
+    ['Choose both a start and an end date and time.', 'client', 'Step 1 · Date & guests', 'notice', 'A date field is empty'],
+    ['Choose a start time in the future.', 'client', 'Step 1 · Date & guests', 'notice', 'Start is in the past'],
+    ['The end time must be after the start time.', 'client', 'Step 1 · Date & guests', 'notice', 'End ≤ start'],
+    ['A rental period cannot exceed 365 days.', 'client', 'Step 1 · Date & guests', 'notice', 'Period longer than a year'],
+    ['Enter between 1 and {capacity} guests.', 'client', 'Step 1 · Date & guests', 'notice', 'Guests outside venue capacity'],
+    ['Service quantities must be whole numbers between 1 and 100,000.', 'client', 'Step 2 · Services', 'notice', 'Bad quantity'],
+    ['This premise is occupied during the requested period.', '409', 'Step 1 + Alternatives list', 'notice', 'Venue already booked → show alternatives'],
+    ['A client may reserve at most three premises at any one time.', '409', 'Step 1', 'notice', 'Client already holds 3 active bookings'],
+    ['Guest count must be positive and within the premise capacity.', '400', 'Step 1', 'notice', 'Server-side capacity check'],
+    ['One or more selected services do not exist.', '400', 'Step 2', 'notice', 'Service removed by admin meanwhile'],
+    ['Clients may cancel pending or unpaid orders.', '400', 'Cancel booking dialog', 'notice', 'Order already confirmed/closed'],
+  ]],
+  ['Invoice & payment', 'Booking / Order details · Invoice and Payment tabs', [
+    ['Enter a cardholder name between 2 and 100 characters.', 'client', 'Payment tab · Cardholder name', 'field', 'Name empty or too long'],
+    ['Use one of the supplied test cards. Real cards are not accepted.', 'client', 'Payment tab · Card number', 'field', 'Unknown card number'],
+    ['Enter a valid expiry date as MM/YY.', 'client', 'Payment tab · Expiry', 'field', 'Wrong format'],
+    ['This test card has expired. Use the current month or a later date.', 'client', 'Payment tab · Expiry', 'field', 'Expiry in the past'],
+    ['Enter a 3-digit test security code, such as 123.', 'client', 'Payment tab · CVV', 'field', 'CVV not 3 digits'],
+    ['Demo payment declined. Nothing was paid; you can try again.', '402', 'Payment tab (top of form)', 'notice', 'Declined test card'],
+    ['This invoice cannot be paid in the current order state.', '409', 'Payment tab', 'notice', 'Order no longer awaiting payment'],
+    ['The rental period has already started. Contact your manager.', '409', 'Payment tab', 'notice', 'Paying after the event start'],
+    ['Only pending or unpaid orders can be invoiced.', '409', 'Invoice tab (staff)', 'notice', 'Generate on a closed order'],
+    ['Demo payments are disabled. A real payment provider is not configured.', 'config', 'Payment tab', 'disabled', 'Feature flag off'],
+  ]],
+  ['Administration', 'Venues, Services, Staff, Orders', [
+    ['Premises with booking history cannot be deleted.', '409', 'Delete record dialog', 'notice', 'Venue has orders'],
+    ['Services with booking history cannot be deleted.', '409', 'Delete record dialog', 'notice', 'Service used in orders'],
+    ['Users with booking history cannot be deleted.', '409', 'Delete record dialog', 'notice', 'Staff/client has orders'],
+    ['The last administrator cannot be deleted. / …cannot be demoted.', '409', 'Delete / Edit staff', 'notice', 'Would leave no admin'],
+    ['Client limit cannot be lower than the current active client count.', '409', 'Edit staff', 'notice', 'Limit below current load'],
+    ['Terminal orders cannot change status. / Invalid order status transition.', '409 / 400', 'Order details', 'notice', 'Status change not allowed'],
+  ]],
+  ['Connection & system', 'Shown anywhere a request is made', [
+    ['Unable to connect. Check your connection and try again.', '0', 'Page / dialog', 'page', 'API unreachable'],
+    ['The request took too long. Check your connection and try again. For a submitted change, refresh before retrying to check whether it was saved.', '0', 'Page / dialog', 'page', 'Timeout after 20 s'],
+    ['The connection was interrupted. Refresh before retrying a submitted change to check whether it was saved.', '0', 'Page / dialog', 'notice', 'Response cut off'],
+    ['You do not have access to this action.', '403', 'Page / dialog', 'notice', 'Role not allowed'],
+    ['This action could not be completed. Try again.', '5xx', 'Page / dialog', 'notice', 'Unknown server error'],
+    ['Could not copy the email address. Select and copy it manually.', 'client', 'Client profile', 'toast', 'Clipboard blocked'],
+  ]],
+];
+const code = c => `<span class="code ${c === 'client' ? 'client' : c === 'config' ? 'warn' : ''}">${c === 'client' ? 'Client check' : c === 'config' ? 'Config' : 'HTTP ' + c}</span>`;
+document.getElementById('cat').innerHTML = `
+  <p class="eyebrow">Handoff for frontend</p><h1>Error states & messages</h1>
+  <p class="lead">Every message the product can show, where it appears and which UI pattern renders it. Copy is final — use it as written. Server messages come from the API <code>detail</code> field; client checks run before a request is sent.</p>
+  <div class="patterns">
+    <div class="pattern"><h3><span class="tag">notice</span>Error notice</h3><div class="notice notice-error" role="alert">${I.alert}<div>The email or password is incorrect. Please try again.</div></div><p>Top of the form or dialog body, above the fields. One notice at a time; cleared when the user edits a field.</p></div>
+    <div class="pattern"><h3><span class="tag">field</span>Inline field error</h3><div class="field field-demo"><label>Card number</label><input value="1234 5678 9012 3456" aria-invalid="true"><span class="payment-field-error">Use one of the supplied test cards. Real cards are not accepted.</span></div><p>Under the field, red border. Focus moves to the first invalid field.</p></div>
+    <div class="pattern"><h3><span class="tag">page</span>Page notice + retry</h3><div class="notice notice-error" role="alert">${I.alert}<div>Unable to connect. Check your connection and try again.</div><button class="text-button">Try again</button></div><p>Full-width at the top of the page when data fails to load. Keeps the last loaded data visible.</p></div>
+    <div class="pattern"><h3><span class="tag">signin</span>Sign-in warning</h3><div class="notice notice-warning" role="status">Your session has expired. Please sign in again.</div><p>Shown on the Sign in screen after an automatic sign-out.</p></div>
+    <div class="pattern"><h3><span class="tag">toast</span>Toast</h3><div class="toast toast-error">${I.alert}<span>Could not copy the email address. Select and copy it manually.</span><button class="icon-button">${I.x}</button></div><p>Bottom-right, for actions with no form. Auto-hides after 6 s or on the close button.</p></div>
+    <div class="pattern"><h3><span class="tag">disabled</span>Warning notice</h3><div class="notice notice-warning">Demo payments are disabled. A real payment provider is not configured.</div><p>Feature unavailable — explain why, do not show the action button.</p></div>
+  </div>
+  ${G.map(([title, sub, rows]) => `<section class="group"><h2>${title}<span>${sub}</span></h2><table class="errs"><colgroup><col style="width:36%"><col style="width:11%"><col style="width:19%"><col style="width:17%"><col style="width:17%"></colgroup><thead><tr><th>Message</th><th>Source</th><th>Where it appears</th><th>UI pattern</th><th>Trigger</th></tr></thead><tbody>
+    ${rows.map(([m, c, w, p, t]) => `<tr><td class="msg">${m}</td><td>${code(c)}</td><td>${w}</td><td>${P[p]}</td><td>${t}</td></tr>`).join('')}</tbody></table></section>`).join('')}
+  <div class="rules"><h3>Rules for dialogs (from stakeholder review)</h3><ol>
+    <li>1. All dialog actions sit in the footer, aligned right: secondary first, primary last. No action buttons inside the dialog body.</li>
+    <li>2. Long dialogs are split into tabs (Details · Invoice · Payment) or steps (Date & guests · Services · Review). Each tab fits without scrolling on a 900 px screen.</li>
+    <li>3. Errors appear at the top of the active tab or step, never only in the footer, so the user sees them without scrolling.</li>
+    <li>4. A failed request never clears what the user typed, except the card security code.</li>
+  </ol></div>`;
+</script>
+</body>
+</html>

@@ -31,7 +31,7 @@ export function Pricing({ quote, title = 'Price breakdown' }) {
   return <section className="pricing"><div className="section-heading"><h3>{title}</h3><span className="muted small">KZT</span></div>
     {quote.legacyEstimate && <div className="notice notice-warning">Historical rental details are estimated. The original order total is preserved.</div>}
     <div className="price-line"><div><strong>{quote.rental.name}</strong><span>{Number(quote.durationHours).toLocaleString('en-KZ', { maximumFractionDigits: 4 })} hours × {money(quote.rental.unitPrice)}/hour</span></div><strong>{money(quote.rental.amount)}</strong></div>
-    {quote.services.map(line => <div className="price-line" key={line.id}><div><strong>{line.name}</strong><span>{line.quantity} units × {money(line.unitPrice)} · {categoryName(line.category)}</span></div><strong>{money(line.amount)}</strong></div>)}
+    {quote.services.map(line => <div className="price-line" key={line.id}><div><strong>{line.name}</strong><span>{line.quantity} {Number(line.quantity) === 1 ? 'unit' : 'units'} × {money(line.unitPrice)} · {categoryName(line.category)}</span></div><strong>{money(line.amount)}</strong></div>)}
     {!quote.services.length && <p className="small muted">No additional services selected.</p>}
     {quote.rentalDiscount > 0 && <div className="price-line"><div><strong>Rental promotion ({quote.promotionPercent}%)</strong><span>Applies to venue rental only.</span></div><strong>−{money(quote.rentalDiscount)}</strong></div>}
     <div className="price-total"><span>Total order value</span><strong>{money(quote.totalAmount)}</strong></div>
@@ -46,12 +46,12 @@ export function CancellationDetails({ order, compact = false }) {
       : <p className="small muted">Cancellation attribution was not recorded for this booking.</p>}
   </div>;
 }
-export function OrderDetails({ order }) {
+export function OrderDetails({ order, staff = false }) {
   return <><div className="detail-head"><div><p className="eyebrow">Reservation</p><h3>{order.venue}</h3><p className="muted">{order.address}</p></div><Status status={order.status} /></div>
     <dl className="details-grid"><div><dt>Rental period</dt><dd>{period(order)}</dd></div><div><dt>Expected guests</dt><dd>{order.guests}</dd></div><div><dt>Reference</dt><dd className="reference">{order.id}</dd></div><div><dt>Manager assignment</dt><dd>{order.managerId ? 'Assigned' : 'Not yet assigned'}</dd></div></dl>
     <CancellationDetails order={order} />
     {order.revision && <div className="booking-revision"><span>Revision {order.revision}</span><span>Change deadline: {dateTime(order.changeDeadline)}</span><span>Recorded payment applied: {money(order.paidAmount)}</span>{order.pendingChangeId && <strong>Change request awaiting review</strong>}</div>}
     {order.pricing && <Pricing quote={order.pricing} />}
-    {order.status === 'pending' && <p className="small muted">Your order has been submitted for manager review. Submission does not confirm the booking.</p>}
+    {order.status === 'pending' && !staff && <p className="small muted">Your order has been submitted for manager review. Submission does not confirm the booking.</p>}
   </>;
 }

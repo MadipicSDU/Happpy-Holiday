@@ -1,12 +1,12 @@
 import React, { useId, useRef, useState } from 'react';
-import { CreditCard, FlaskConical, Loader2 } from 'lucide-react';
+import { CreditCard, FlaskConical } from 'lucide-react';
 import { ErrorNotice } from './UI';
 import { money } from '../utils';
 import { DEMO_CARDS, demoCardExample, formatDemoCardNumber, formatDemoExpiry, validateDemoPayment } from '../demoPayment';
 
 const emptyDetails = { cardholderName: '', cardNumber: '', expiry: '', securityCode: '' };
 
-export default function DemoCheckout({ invoice, busy, onPay }) {
+export default function DemoCheckout({ invoice, busy, onPay, formId }) {
   const [details, setDetails] = useState(emptyDetails), [errors, setErrors] = useState({}), [paymentError, setPaymentError] = useState('');
   const id = useId(), formRef = useRef(null), submitting = useRef(false);
   const update = (name, value) => {
@@ -31,10 +31,11 @@ export default function DemoCheckout({ invoice, busy, onPay }) {
   </div>;
 
   return <section className="demo-payment" aria-labelledby={`${id}-title`}>
-    <div className="demo-checkout-heading"><div><p className="eyebrow">Card payment</p><h3 id={`${id}-title`}>Pay your invoice</h3></div><span className="demo-checkout-badge"><FlaskConical size={15} />Demo mode</span></div>
-    <p>Use the sample cards below to try checkout. Do not enter real card details. No money will be charged.</p>
+    <div className="demo-checkout-heading"><div><h3 id={`${id}-title`}>Card details</h3></div><span className="demo-checkout-badge"><FlaskConical size={15} />Demo mode</span></div>
+    <p>Pick a sample card to fill the form. Do not enter real card details. No money will be charged.</p>
+    <ErrorNotice message={paymentError} />
     <div className="demo-card-presets" role="group" aria-label="Demo test cards">{DEMO_CARDS.map(card => <button type="button" className="demo-card-preset" key={card.outcome} disabled={busy} onClick={() => useCard(card.outcome)}><CreditCard size={19} /><span><strong>Use {card.label.toLowerCase()}</strong><small>{formatDemoCardNumber(card.number)}</small></span></button>)}</div>
-    <div className="demo-checkout-layout"><form ref={formRef} className="demo-checkout-form" onSubmit={submit} noValidate autoComplete="off" aria-label="Demo card payment details">
+    <div className="demo-checkout-layout"><form ref={formRef} id={formId} className="demo-checkout-form" onSubmit={submit} noValidate autoComplete="off" aria-label="Demo card payment details">
       <fieldset disabled={busy}>
         {field('cardholderName', 'Cardholder name', { type: 'text', maxLength: 100, placeholder: 'Alex Demo', onChange: event => update('cardholderName', event.target.value) })}
         {field('cardNumber', 'Card number', { type: 'text', inputMode: 'numeric', maxLength: 19, placeholder: '4242 4242 4242 4242', onChange: event => update('cardNumber', formatDemoCardNumber(event.target.value)) })}
@@ -42,9 +43,7 @@ export default function DemoCheckout({ invoice, busy, onPay }) {
           {field('expiry', 'Expiry date', { type: 'text', inputMode: 'numeric', maxLength: 5, placeholder: 'MM/YY', onChange: event => update('expiry', formatDemoExpiry(event.target.value)) })}
           {field('securityCode', 'Security code (CVV)', { type: 'password', inputMode: 'numeric', maxLength: 3, placeholder: '123', onChange: event => update('securityCode', event.target.value.replace(/\D/g, '').slice(0, 3)) })}
         </div>
-        <ErrorNotice message={paymentError} />
-        <button type="submit" className="button primary full demo-pay-button" disabled={busy}>{busy ? <><Loader2 className="spin" size={17} />Processing demo payment…</> : <><CreditCard size={17} />Pay {money(invoice.totalAmount)} · Demo</>}</button>
       </fieldset>
-    </form><aside className="demo-payment-summary" aria-label="Payment amount"><span className="small muted">Amount due</span><strong>{money(invoice.totalAmount)}</strong><p>{invoice.pricing.premiseName}</p><p className="small muted">{invoice.number}</p><div className="demo-payment-divider" /><p className="small">Successful test card → confirmed booking and demo receipt.</p><p className="small">Declined test card → no payment; try again with another test card.</p></aside></div>
+    </form><aside className="demo-payment-summary" aria-label="Payment amount"><span className="small muted">Amount due</span><strong>{money(invoice.totalAmount)}</strong><p>{invoice.pricing.premiseName}</p><p className="small muted">{invoice.number}</p></aside></div>
   </section>;
 }
