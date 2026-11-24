@@ -11,7 +11,9 @@ public sealed class CancellationWorkflow(AppDbContext db, TimeProvider clock)
     {
         var deadline = order.EventDate.AddHours(-order.ChangeCutoffHours);
         var late = now >= deadline;
-        var rate = late ? order.LateCancellationPercent : order.EarlyCancellationPercent;
+        var rate = order.PaidAmount > 0
+            ? (late ? order.LateCancellationPercent : order.EarlyCancellationPercent)
+            : 0m;
         var penalty = BookingRules.Money(order.TotalAmount * rate / 100m);
         return new(order.Id, order.Revision, order.PenaltyPolicyVersion, deadline, late, rate,
             order.TotalAmount, order.PaidAmount, penalty, Math.Max(0, order.PaidAmount - penalty),

@@ -59,7 +59,7 @@ export function Pricing({ quote, title = 'Price breakdown' }) {
     {quote.services.map(line => <div className="price-line" key={line.id}><div><strong>{line.name}</strong><span>{line.quantity} {Number(line.quantity) === 1 ? 'unit' : 'units'} × {money(line.unitPrice)} · {categoryName(line.category)}</span></div><strong>{money(line.amount)}</strong></div>)}
     {!quote.services.length && <p className="small muted">No additional services selected.</p>}
     {quote.rentalDiscount > 0 && <div className="price-line"><div><strong>Rental promotion ({quote.promotionPercent}%)</strong><span>Applies to venue rental only.</span></div><strong>−{money(quote.rentalDiscount)}</strong></div>}
-    {quote.cancellationTerms && <p className="small muted">Cancellation costs {quote.cancellationTerms.earlyPercent}% before the {quote.cancellationTerms.cutoffHours}-hour change deadline and {quote.cancellationTerms.latePercent}% afterwards.</p>}
+    {quote.cancellationTerms && <p className="small muted">Cancellation is free until payment. After payment, the fee is {quote.cancellationTerms.earlyPercent}% before the {quote.cancellationTerms.cutoffHours}-hour change deadline and {quote.cancellationTerms.latePercent}% from the deadline onward.</p>}
     <div className="price-total"><span>Total order value</span><strong>{money(quote.totalAmount)}</strong></div>
   </section>;
 }

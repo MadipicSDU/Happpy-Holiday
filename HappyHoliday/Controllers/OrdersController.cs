@@ -88,8 +88,6 @@ public sealed class OrdersController(AppDbContext db, OrderingService ordering, 
         if (dto.Status == "cancelled")
         {
             if (order.PaidAmount > 0) return BadRequest(new ProblemDetails { Detail = "A paid booking requires the cancellation and refund workflow." });
-            var quote = cancellation.Quote(order);
-            if (quote.PenaltyAmount > 0) return Conflict(new ProblemDetails { Detail = "Review the cancellation quote and penalty before confirming cancellation." });
             var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == UserId, ct);
             if (actor is null) return Unauthorized();
             await cancellation.Cancel(order, new CancelOrderDto(order.Revision, 0, 0, 0), actor, ct);

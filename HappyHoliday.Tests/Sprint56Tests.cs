@@ -97,17 +97,47 @@ public sealed partial class BackendTests
     }
 
     [TestMethod]
-    public async Task UnpaidLateCancellationCannotBypassPenaltyAndCanPayDemoBalance()
+    [DataRow(false, "pending")]
+    [DataRow(true, "awaiting-payment")]
+    public async Task UnpaidLateCancellationHasNoPenalty(bool issueInvoice, string expectedStatus)
     {
-        using var admin = Http(_admin); using var client = Http(_clients[0]);
+        using var admin = Http(_admin);
+        using var client = Http(_clients[0]);
         await Check(await admin.PutAsJsonAsync("/api/admin/cancellation-policy", new { expectedVersion = 0, cutoffHours = 168, earlyPercent = 0, latePercent = 50 }), HttpStatusCode.OK);
-        var start = DateTimeOffset.UtcNow.AddDays(1); var created = await client.PostAsJsonAsync("/api/orders", Request(start: start, end: start.AddHours(1)));
-        await Check(created, HttpStatusCode.Created); var id = (await Body(created)).GetProperty("id").GetString(); var url = $"/api/orders/{id}/cancellation";
-        await Check(await client.PatchAsJsonAsync($"/api/orders/{id}/status", new { status = "cancelled" }), HttpStatusCode.Conflict);
-        var quote = await Body(await client.GetAsync(url + "/quote")); Assert.IsGreaterThan(0m, quote.GetProperty("amountDue").GetDecimal());
-        await Check(await client.PostAsJsonAsync(url, ConfirmCancellation(quote)), HttpStatusCode.OK);
-        var result = await client.PostAsync(url + "/settle", null); await Check(result, HttpStatusCode.OK);
-        Assert.AreEqual("settled", (await Body(result)).GetProperty("status").GetString());
+        var start = DateTimeOffset.UtcNow.AddDays(1);
+        var created = await client.PostAsJsonAsync("/api/orders", Request(start: start, end: start.AddHours(1)));
+        await Check(created, HttpStatusCode.Created);
+        var id = (await Body(created)).GetProperty("id").GetString();
+        var orderUrl = $"/api/orders/{id}";
+        var invoiceUrl = orderUrl + "/invoice";
+        var cancellationUrl = orderUrl + "/cancellation";
+        if (issueInvoice)
+        {
+            await Check(await admin.PostAsync(invoiceUrl, null), HttpStatusCode.OK);
+            await Check(await admin.PostAsync(invoiceUrl + "/deliver", null), HttpStatusCode.OK);
+        }
+        var order = await Body(await client.GetAsync(orderUrl));
+        Assert.AreEqual(expectedStatus, order.GetProperty("status").GetString());
+        Assert.AreEqual(0m, order.GetProperty("paidAmount").GetDecimal());
+
+        var quote = await Body(await client.GetAsync(cancellationUrl + "/quote"));
+        Assert.IsTrue(quote.GetProperty("isLate").GetBoolean());
+        Assert.AreEqual(0m, quote.GetProperty("ratePercent").GetDecimal());
+        Assert.AreEqual(0m, quote.GetProperty("penaltyAmount").GetDecimal());
+        Assert.AreEqual(0m, quote.GetProperty("amountDue").GetDecimal());
+        Assert.AreEqual(0m, quote.GetProperty("refundAmount").GetDecimal());
+
+        var cancelled = await client.PostAsJsonAsync(cancellationUrl, ConfirmCancellation(quote));
+        await Check(cancelled, HttpStatusCode.OK);
+        var result = await Body(cancelled);
+        Assert.AreEqual("cancelled", result.GetProperty("order").GetProperty("status").GetString());
+        var statement = await Body(await client.GetAsync(cancellationUrl));
+        Assert.AreEqual("settled", statement.GetProperty("status").GetString());
+        Assert.AreEqual(0m, statement.GetProperty("penaltyAmount").GetDecimal());
+        Assert.AreEqual(0m, statement.GetProperty("amountDue").GetDecimal());
+        Assert.IsFalse(statement.GetProperty("isDemo").GetBoolean());
+        if (issueInvoice)
+            Assert.AreEqual("void", (await Body(await client.GetAsync(invoiceUrl))).GetProperty("status").GetString());
     }
 
     [TestMethod]
