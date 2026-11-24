@@ -1,0 +1,125 @@
+/* ───────── Variant B — "Board": pages instead of dialogs, boards and Gantt charts ───────── */
+
+/* #2 order as a page: rail with facts + section list, content on the right, sticky action bar */
+body.has-order-page #main-content > :not(.order-page) { display: none !important; }
+.order-page { display: grid; gap: 14px; }
+.op-crumbs { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.op-crumbs strong { color: var(--ink); }
+.op-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: white; border-radius: 99px; padding: 6px 12px; font-weight: 500; color: var(--ink); }
+.op-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 22px; align-items: start; }
+.op-rail { position: sticky; top: 16px; display: grid; gap: 14px; }
+.op-rail .order-summary { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.op-nav { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 6px; display: grid; gap: 2px; }
+.op-nav-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; background: none; border-radius: 9px; padding: 11px 12px; font-weight: 600; font-size: 14px; color: var(--muted); text-align: left; }
+.op-nav-item:hover:not(:disabled) { background: #f4f6f2; color: var(--ink); }
+.op-nav-item.active { background: var(--ink); color: white; }
+.op-nav-item.active .modal-tab-badge { background: rgba(255,255,255,.18); color: white; }
+.op-main { background: white; border: 1px solid var(--line); border-radius: 14px; min-width: 0; display: flex; flex-direction: column; min-height: 640px; }
+.op-head { padding: 22px 28px 0; } .op-head h1 { font-size: 26px; letter-spacing: -.6px; } .op-head p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.op-body.modal-body { flex: 1; overflow: visible; padding: 22px 28px 28px; }
+.op-actions.modal-footer { position: sticky; bottom: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(6px); border-radius: 0 0 14px 14px; z-index: 3; }
+.op-actions .footer-slot { display: contents; }
+
+/* #3, #4, #15 schedule as a board — one column per person */
+.exec-readiness ul { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.exec-board-wrap { display: grid; gap: 12px; }
+.exec-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.exec-col { background: #f4f6f2; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 180px; }
+.exec-col.is-unassigned { background: #fff6ea; }
+.exec-col > header { display: flex; align-items: center; gap: 8px; padding: 2px 2px 4px; }
+.exec-col > header strong { font-size: 13px; flex: 1; }
+.exec-col.is-unassigned .avatar-dot { background: var(--amber-bg); color: var(--amber); }
+.exec-col-count { font-size: 11px; color: var(--muted); background: white; border-radius: 99px; padding: 1px 8px; }
+.exec-col-note { font-size: 11px; color: var(--red); }
+.exec-col-empty, .kanban-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 18px 6px; border: 1px dashed #d8ddd6; border-radius: 10px; }
+.exec-card { background: white; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; display: grid; gap: 3px; box-shadow: 0 1px 2px #1d59460a; }
+.exec-card.is-open { border-color: #a9c4b4; box-shadow: 0 8px 20px #1d594614; }
+.exec-card.is-clash { border-color: #e2b3b3; }
+.exec-card.is-deleting { border-color: #e6b8b8; background: #fff7f7; }
+.exec-card-top { display: flex; align-items: center; gap: 6px; }
+.exec-card-top .exec-time { font-size: 11px; } .exec-card-top .exec-row-tools { margin-left: auto; }
+.exec-card-name { font-size: 13px; }
+.exec-card-service { font-size: 11px; color: var(--muted); }
+.exec-card-warn { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; font-weight: 600; color: var(--red); }
+.exec-card-move { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.exec-card-move select { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px; font-size: 11px; background: white; }
+.exec-card-editor { border: 0; margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); display: grid; gap: 0; }
+.exec-card-editor .field { margin-bottom: 8px; font-size: 11px; }
+.exec-card-confirm { display: grid; gap: 6px; font-size: 12px; } .exec-card-confirm strong { color: var(--red); } .exec-card-confirm div { display: flex; gap: 6px; justify-content: flex-end; }
+.exec-add { border: 1px dashed #d9b98b; background: transparent; color: var(--amber); border-radius: 10px; padding: 10px; font-weight: 600; font-size: 12px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+
+/* #21, #22, #26 change request as a wizard */
+.change-wizard { display: grid; gap: 16px; }
+.wizard-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.wizard-steps li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); border-top: 3px solid #e3e7e1; padding-top: 8px; }
+.wizard-steps li span { width: 20px; height: 20px; border-radius: 50%; background: #eceee9; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+.wizard-steps li.current { color: var(--ink); font-weight: 600; border-top-color: var(--green); } .wizard-steps li.current span { background: var(--green); color: white; }
+.wizard-steps li.done { border-top-color: #9cc0aa; } .wizard-steps li.done span { background: var(--green-bg); color: var(--green); }
+.change-start-card.selected { border-color: var(--green); background: var(--green-bg); box-shadow: inset 0 0 0 1px var(--green); }
+.wizard-estimate { font-size: 13px; color: var(--muted); background: #f7f9f5; border-radius: 10px; padding: 10px 12px; } .wizard-estimate strong { color: var(--ink); }
+
+/* #1, #6–#9 worklist as a kanban board */
+.kanban { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.kanban-col { background: #f1f3ee; border-radius: 14px; padding: 10px; display: grid; gap: 8px; }
+.kanban-col > header { display: grid; grid-template-columns: 1fr auto; padding: 4px 4px 6px; }
+.kanban-col > header strong { font-size: 13px; } .kanban-col > header span { font-size: 12px; font-weight: 700; background: white; border-radius: 99px; padding: 0 9px; }
+.kanban-col > header small { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
+.kanban-col.is-changes, .kanban-col.is-invoice { background: #fbf1e3; } .kanban-col.is-changes > header span, .kanban-col.is-invoice > header span { color: var(--amber); }
+.kanban-col.is-schedule { background: #e8f1ea; }
+.kanban-card { background: white; border-radius: 10px; padding: 11px 12px; display: grid; gap: 3px; border: 1px solid #e6e9e3; }
+.kanban-card strong { font-size: 13px; } .kanban-card > span { font-size: 12px; }
+.kanban-card .button { margin-top: 8px; width: 100%; }
+.kanban-date { display: inline-flex; gap: 5px; align-items: center; font-size: 11px; font-weight: 600; color: var(--muted); }
+
+/* #1, #11, #13, #14 one shared time axis (Gantt) + day navigator */
+.day-nav { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; }
+.day-nav strong { min-width: 150px; text-align: center; font-size: 14px; }
+.day-nav .segmented { margin-left: auto; }
+.gantt { background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.gantt-head, .gantt-row { display: grid; grid-template-columns: 230px minmax(0, 1fr) 120px; gap: 14px; align-items: center; padding: 0 16px; }
+.gantt-head { position: sticky; top: 0; background: #f6f7f4; border-bottom: 1px solid var(--line); height: 34px; z-index: 2; }
+.gantt-axis { position: relative; height: 100%; }
+.gantt-axis span { position: absolute; top: 50%; transform: translate(-50%, -50%); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.gantt-axis span:first-child { transform: translate(0, -50%); }
+.gantt-row { height: 46px; border-bottom: 1px solid #eef1ec; }
+.gantt-row:last-child { border-bottom: 0; }
+.gantt-row.is-free { opacity: .78; }
+.gantt-name { display: flex; align-items: center; gap: 8px; min-width: 0; } .gantt-name > span:last-child { display: grid; min-width: 0; }
+.gantt-name strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .gantt-name small { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt-track { position: relative; height: 28px; background: #f8f9f6; border-radius: 6px; }
+.gantt-track i { position: absolute; top: 0; bottom: 0; width: 1px; background: #eceee9; }
+.gantt-bar { position: absolute; top: 3px; bottom: 3px; border: 0; border-radius: 6px; background: #e9b46f; color: #4d2f08; font-size: 10px; font-weight: 600; padding: 0 8px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt-bar.tone-now { background: var(--red); color: white; }
+.gantt-row .state-pill { justify-self: end; }
+
+/* #28, #29 category rail */
+.catalog-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 20px; align-items: start; }
+.category-rail { position: sticky; top: 16px; background: white; border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: grid; gap: 2px; }
+.category-rail button { display: flex; align-items: center; gap: 6px; border: 0; background: none; border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--ink); text-align: left; }
+.category-rail button span { margin-left: auto; font-size: 11px; color: var(--muted); }
+.category-rail button:hover { background: #f4f6f2; } .category-rail button.active { background: var(--ink); color: white; } .category-rail button.active span { color: #d6e0da; }
+.category-rail button.is-new { color: var(--green); font-weight: 600; } .category-rail button.is-new.active { color: white; }
+.rail-group p { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 10px 10px 2px; }
+.catalog-layout .admin-service-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* #18 staff: hero "next up" + agenda line */
+.brief-card.is-featured { background: var(--ink); color: white; border-color: var(--ink); }
+.brief-card.is-featured .brief-time { border-right-color: rgba(255,255,255,.18); } .brief-card.is-featured .brief-time span, .brief-card.is-featured .brief-meta, .brief-card.is-featured .eyebrow { color: #c7d6cd; }
+.brief-card.is-featured .brief-instructions { background: rgba(255,255,255,.08); } .brief-card.is-featured .brief-instructions .muted { color: #b8c8be; }
+.brief-card.is-featured .brief-foot { border-top-color: rgba(255,255,255,.15); } .brief-card.is-featured .brief-steps li { color: #c7d6cd; } .brief-card.is-featured .brief-steps li.current { color: white; }
+.brief-card.is-featured .button.primary { background: white; color: var(--ink); }
+.brief-day { position: relative; padding-left: 22px; }
+.brief-day::before { content: ''; position: absolute; left: 6px; top: 34px; bottom: 6px; width: 2px; background: #dfe5df; }
+.brief-day .brief-card { position: relative; border-radius: 12px; }
+.brief-day .brief-card::before { content: ''; position: absolute; left: -21px; top: 22px; width: 12px; height: 12px; border-radius: 50%; background: white; border: 3px solid var(--green); }
+
+@media (max-width: 1100px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } .op-grid { grid-template-columns: 1fr; } .op-rail { position: static; } .catalog-layout { grid-template-columns: 1fr; } }
+/* layout tweaks after review */
+.op-actions.modal-footer { position: static; }
+.exec-board { grid-auto-columns: minmax(0, 1fr); overflow: visible; }
+.op-rail .order-summary h3 { display: none; }
+.op-rail .order-summary-address { margin-top: 10px; }
+.exec-card-top { flex-wrap: wrap; } .exec-card .exec-time { white-space: nowrap; }
+.exec-card-move { flex-direction: column; align-items: stretch; gap: 3px; } .exec-card-move select { width: 100%; }
+.brief-card.is-featured .brief-steps li span { background: rgba(255,255,255,.16); color: white; }
+.brief-card.is-featured .brief-steps li.current span { background: white; color: var(--ink); }

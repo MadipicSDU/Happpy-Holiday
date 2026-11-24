@@ -1,7 +1,7 @@
 const API = (import.meta.env?.VITE_API_URL || 'http://localhost:5294/api').replace(/\/$/, '');
 
 export class ApiError extends Error {
-  constructor(message, status) { super(message); this.name = 'ApiError'; this.status = status; }
+  constructor(message, status, code) { super(message); this.name = 'ApiError'; this.status = status; this.code = code; }
 }
 
 export async function request(path, { token, method = 'GET', body, signal, timeoutMs = 20000 } = {}) {
@@ -47,7 +47,7 @@ async function sendRequest(path, { token, method, body, signal }) {
       : data?.errors ? Object.values(data.errors).flat().join(' ')
       : data?.detail || data?.title || (response.status === 403 ? 'You do not have access to this action.' : 'This action could not be completed. Try again.');
     if (response.status === 401 && token) window.dispatchEvent(new Event('session-expired'));
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, data?.code);
   }
   if (response.status !== 204 && (data === null || typeof data !== 'object')) {
     throw new ApiError('The server returned an unreadable response. Refresh before retrying a submitted change to check whether it was saved.', response.status);
@@ -72,6 +72,7 @@ export const api = {
     occupancy: (token, from, to, signal) => request(`/premises/occupancy?${new URLSearchParams({ from, to })}`, { token, signal }) },
   services: collection('/services'),
   orders: { ...collection('/orders'),
+    get: (token, id, signal) => request(`/orders/${encodeURIComponent(id)}`, { token, signal }),
     quote: (token, body, signal) => request('/orders/quote', { token, method: 'POST', body, signal }),
     updateStatus: (token, id, status) => request(`/orders/${encodeURIComponent(id)}/status`, { token, method: 'PATCH', body: { status } }) },
   clients: { getAll: (token, signal) => request('/users/clients', { token, signal }) },
@@ -90,10 +91,32 @@ export const api = {
     review: (token, id, changeId, body) => request(`/orders/${encodeURIComponent(id)}/changes/${encodeURIComponent(changeId)}/review`, { token, method: 'POST', body }),
   },
   execution: {
+    schedule: (token, id, signal) => request(`/orders/${encodeURIComponent(id)}/schedule`, { token, signal }),
     get: (token, id, signal) => request(`/orders/${encodeURIComponent(id)}/execution`, { token, signal }),
     save: (token, id, body) => request(`/orders/${encodeURIComponent(id)}/execution`, { token, method: 'PUT', body }),
     finalize: (token, id, expectedVersion) => request(`/orders/${encodeURIComponent(id)}/execution/finalize`, { token, method: 'POST', body: { expectedVersion } }),
     dispatch: (token, id, expectedVersion) => request(`/orders/${encodeURIComponent(id)}/execution/dispatch`, { token, method: 'POST', body: { expectedVersion } }),
+  },
+  cancellations: {
+    quote: (token, id, signal) => request(`/orders/${encodeURIComponent(id)}/cancellation/quote`, { token, signal }),
+    get: (token, id, signal) => request(`/orders/${encodeURIComponent(id)}/cancellation`, { token, signal }),
+    cancel: (token, id, body) => request(`/orders/${encodeURIComponent(id)}/cancellation`, { token, method: 'POST', body }),
+    settle: (token, id) => request(`/orders/${encodeURIComponent(id)}/cancellation/settle`, { token, method: 'POST' }),
+    policy: (token, signal) => request('/admin/cancellation-policy', { token, signal }),
+    savePolicy: (token, body) => request('/admin/cancellation-policy', { token, method: 'PUT', body }),
+  },
+  reviews: {
+    get: (token, id, signal) => request(`/orders/${encodeURIComponent(id)}/review`, { token, signal }),
+    submit: (token, id, body) => request(`/orders/${encodeURIComponent(id)}/review`, { token, method: 'POST', body }),
+    summary: (token, signal) => request('/reviews/summary', { token, signal }),
+    feedback: (token, page, signal) => request(`/reviews/feedback?page=${page}`, { token, signal }),
+  },
+  reports: {
+    analytics: (token, from, to, signal) => request(`/reports/analytics?${new URLSearchParams({ from, to })}`, { token, signal }),
+    audit: (token, year, half, signal) => request(`/admin/maintenance/audit?${new URLSearchParams({ year, half })}`, { token, signal }),
+    archive: token => request('/admin/maintenance/archive', { token, method: 'POST' }),
+    complete: token => request('/admin/maintenance/complete-expired', { token, method: 'POST' }),
+    export: (token, year, half, signal) => download(`/admin/maintenance/export?${new URLSearchParams({ year, half })}`, token, signal),
   },
   management: {
     operators: (token, signal) => request('/management/operators', { token, signal }),
@@ -108,3 +131,14 @@ export const api = {
     saveProfile: (token, body) => request('/users/me', { token, method: 'PUT', body }),
     getStaff: (token, signal) => request('/users/staff', { token, signal }) },
 };
+
+// Downloads remain authenticated; bearer tokens never appear in URLs.
+export async function download(path, token, signal) {
+  let response;
+  try { response = await fetch(`${API}${path}`, { signal, headers: { Authorization: `Bearer ${token}`, Accept: 'text/csv' } }); }
+  catch (error) { if (error.name === 'AbortError') throw error; throw new ApiError('Unable to download the report. Check your connection and try again.', 0); }
+  if (response.status === 401) { window.dispatchEvent(new Event('session-expired')); throw new ApiError('Your session has expired. Please sign in again.', 401); }
+  if (!response.ok) throw new ApiError('The report could not be downloaded. Check access and the selected period.', response.status);
+  if (!response.headers.get('Content-Type')?.includes('text/csv')) throw new ApiError('The server returned an unreadable report. Try exporting again.', response.status);
+  return response.blob();
+}

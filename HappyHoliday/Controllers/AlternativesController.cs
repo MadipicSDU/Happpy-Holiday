@@ -27,7 +27,7 @@ public sealed class AlternativesController(AppDbContext db, TimeProvider clock) 
             if (order.PremiseId != dto.PremiseId || order.EventDate != start || order.EndDate != end || order.ExpectedGuests != dto.Guests)
                 return BadRequest(new ProblemDetails { Detail = "Check availability with the stored order details." });
         }
-        var occupied = await db.Orders.Where(o => o.Id != dto.OrderId && o.Status != "cancelled" && o.Status != "completed"
+        var occupied = await db.Orders.Where(o => o.Id != dto.OrderId && BookingRules.ActiveStatuses.Contains(o.Status)
             && o.EventDate < end && o.EndDate > start).Select(o => o.PremiseId).Distinct().ToListAsync(ct);
         var hours = BookingRules.Hours(start, end);
         var candidates = await db.Premises.AsNoTracking().Where(p => p.Id != dto.PremiseId && p.Capacity >= dto.Guests && !occupied.Contains(p.Id)).ToListAsync(ct);

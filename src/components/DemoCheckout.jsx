@@ -1,6 +1,6 @@
 import React, { useId, useRef, useState } from 'react';
 import { CreditCard, FlaskConical } from 'lucide-react';
-import { ErrorNotice } from './UI';
+import { ErrorNotice, Req, RequiredNote } from './UI';
 import { money } from '../utils';
 import { DEMO_CARDS, demoCardExample, formatDemoCardNumber, formatDemoExpiry, validateDemoPayment } from '../demoPayment';
 
@@ -24,7 +24,7 @@ export default function DemoCheckout({ invoice, busy, onPay, formId }) {
     catch (error) { setPaymentError(error.message); }
     finally { submitting.current = false; setDetails(previous => ({ ...previous, securityCode: '' })); }
   };
-  const field = (name, label, input) => <div className="field"><label htmlFor={`${id}-${name}`}>{label}</label>
+  const field = (name, label, input) => <div className="field"><label htmlFor={`${id}-${name}`}>{label}<Req /></label>
     <input {...input} id={`${id}-${name}`} name={`demo-${name}`} value={details[name]} required autoComplete="off"
       aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `${id}-${name}-error` : undefined} />
     {errors[name] && <span className="payment-field-error" id={`${id}-${name}-error`}>{errors[name]}</span>}
@@ -36,7 +36,7 @@ export default function DemoCheckout({ invoice, busy, onPay, formId }) {
     <ErrorNotice message={paymentError} />
     <div className="demo-card-presets" role="group" aria-label="Demo test cards">{DEMO_CARDS.map(card => <button type="button" className="demo-card-preset" key={card.outcome} disabled={busy} onClick={() => useCard(card.outcome)}><CreditCard size={19} /><span><strong>Use {card.label.toLowerCase()}</strong><small>{formatDemoCardNumber(card.number)}</small></span></button>)}</div>
     <div className="demo-checkout-layout"><form ref={formRef} id={formId} className="demo-checkout-form" onSubmit={submit} noValidate autoComplete="off" aria-label="Demo card payment details">
-      <fieldset disabled={busy}>
+      <fieldset disabled={busy}><RequiredNote />
         {field('cardholderName', 'Cardholder name', { type: 'text', maxLength: 100, placeholder: 'Alex Demo', onChange: event => update('cardholderName', event.target.value) })}
         {field('cardNumber', 'Card number', { type: 'text', inputMode: 'numeric', maxLength: 19, placeholder: '4242 4242 4242 4242', onChange: event => update('cardNumber', formatDemoCardNumber(event.target.value)) })}
         <div className="form-row">

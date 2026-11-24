@@ -1,6 +1,7 @@
 using HappyHoliday.Authentication;
 using HappyHoliday.Data;
 using HappyHoliday.Models;
+using HappyHoliday.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ public sealed class PremisesController(AppDbContext database) : ControllerBase
         var end = to.UtcDateTime;
         var premises = await database.Premises.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
         var bookings = await database.Orders.AsNoTracking()
-            .Where(o => o.Status != "cancelled" && o.Status != "completed" && o.EventDate < end && o.EndDate > start)
+            .Where(o => BookingRules.ActiveStatuses.Contains(o.Status) && o.EventDate < end && o.EndDate > start)
             .Select(o => new { o.Id, o.PremiseId, StartsAt = o.EventDate, EndsAt = o.EndDate, o.Status }).ToListAsync(ct);
         return Ok(premises.Select(p => new
         {
@@ -69,6 +70,7 @@ public sealed class PremisesController(AppDbContext database) : ControllerBase
             return BadRequest();
         }
 
+        await using var transaction = await BookingTransaction.BeginAsync(database, cancellationToken);
         var premise = await database.Premises.FindAsync(new object[] { id }, cancellationToken);
         if (premise is null)
         {
@@ -84,6 +86,7 @@ public sealed class PremisesController(AppDbContext database) : ControllerBase
         premise.ImageUrl = updatedPremise.ImageUrl;
 
         await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return NoContent();
     }
 

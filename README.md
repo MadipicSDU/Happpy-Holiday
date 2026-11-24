@@ -22,6 +22,10 @@ npm run dev -- --port 3000
 Then visit [http://localhost:3000](http://localhost:3000).
 The API URL defaults to `http://localhost:5294/api`; set `VITE_API_URL` before starting Vite or building to use another backend. For a different browser origin, configure the API's `Cors:AllowedOrigins` list explicitly.
 
+The redesigned frontend uses the .NET API for all six sprints. Order details open as a full page with a section rail, and the order queue displays staff brief progress. Open **Cancellation policy** in Administration to configure fees. In **Reports**, expand **Period reports, ratings and feedback** to see the Sprint 6 reports.
+
+The archive's separate `mock-api/server.cjs` is available for design previews with sample data. It covers the original preview workflows. Run the .NET API to use cancellation statements, settlement, reviews and period reports.
+
 ---
 
 ## Backend API
@@ -33,6 +37,10 @@ See [backend API, review findings and migration instructions](docs/backend-sprin
 Sprint 3 adds suitable venue alternatives, configurable rental promotions, immutable invoices, delivery to the client portal, and development-only demo checkout with payment receipts. Real money is not charged. Production demo payments are always disabled. See [Sprint 3 workflow, migration and verification](docs/sprint3.md).
 
 Sprint 4 adds booking revisions, payment differences and demo credits, execution scheduling and private staff briefs, concurrent service capacity, and an operations dashboard. The change cutoff defaults to **7 days before the event**. See [Sprint 4 stories, migration, and demonstration](docs/sprint4.md).
+
+Sprint 5 adds versioned cancellation terms, reviewed penalties/refunds, immutable statements, demo settlement, live booking tracking and a client event-schedule viewer. See [Sprint 5](docs/sprint5.md).
+
+Sprint 6 adds automatic paid-order completion and archival, venue/location/service demand reports, biannual audit/CSV export, and completed-event venue and service reviews. See [Sprint 6](docs/sprint6.md) and [all 41 stories](docs/sprint-coverage.md). Payments and refunds remain simulations; cancellation rates default to zero until configured for new bookings.
 
 ### Run
 ```powershell

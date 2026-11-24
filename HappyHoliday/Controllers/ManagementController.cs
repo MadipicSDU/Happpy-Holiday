@@ -18,13 +18,13 @@ public sealed class ManagementController(AppDbContext db, TimeProvider clock) : 
     {
         var now = BookingRules.UtcNow(clock); var start = from?.UtcDateTime ?? now.Date; var end = to?.UtcDateTime ?? start.AddDays(1);
         if (end <= start || end - start > TimeSpan.FromDays(31)) return BadRequest(new ProblemDetails { Detail = "Choose a monitoring period of up to 31 days." });
-        var orders = await OrderAccess.Visible(db, User).AsNoTracking().Where(o => o.Status != "cancelled" && o.Status != "completed").OrderBy(o => o.EventDate).ToListAsync(ct);
+        var orders = await OrderAccess.Visible(db, User).AsNoTracking().Where(o => BookingRules.ActiveStatuses.Contains(o.Status)).OrderBy(o => o.EventDate).ToListAsync(ct);
         var orderIds = orders.Select(o => o.Id).ToList();
-        var allReservations = await db.Orders.AsNoTracking().Where(o => o.Status != "cancelled" && o.Status != "completed" && o.EventDate < end && o.EndDate > start)
+        var allReservations = await db.Orders.AsNoTracking().Where(o => BookingRules.ActiveStatuses.Contains(o.Status) && o.EventDate < end && o.EndDate > start)
             .Select(o => new { o.Id, o.PremiseId, o.EventDate, o.EndDate }).ToListAsync(ct);
         var venues = await db.Premises.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
         var services = await db.EventServices.AsNoTracking().OrderBy(s => s.Category).ThenBy(s => s.Name).ToListAsync(ct);
-        var reserved = await db.OrderServices.Where(s => s.Order!.Status != "cancelled" && s.Order.Status != "completed" && s.Order.EventDate < end && s.Order.EndDate > start)
+        var reserved = await db.OrderServices.Where(s => BookingRules.ActiveStatuses.Contains(s.Order!.Status) && s.Order.EventDate < end && s.Order.EndDate > start)
             .Select(s => new { s.EventServiceId, s.Quantity, s.Order!.EventDate, s.Order.EndDate }).ToListAsync(ct);
         var tasks = await db.ExecutionTasks.AsNoTracking().Where(t => (t.Plan.State == "finalized" || t.Plan.State == "dispatched")
             && t.Plan.Order.Status == "confirmed" && t.Plan.OrderRevision == t.Plan.Order.Revision && t.StartsAt < end && t.EndsAt > start)

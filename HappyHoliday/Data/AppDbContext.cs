@@ -16,6 +16,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ExecutionPlan> ExecutionPlans => Set<ExecutionPlan>();
     public DbSet<ExecutionTask> ExecutionTasks => Set<ExecutionTask>();
     public DbSet<ExecutionBrief> ExecutionBriefs => Set<ExecutionBrief>();
+    public DbSet<CancellationPolicy> CancellationPolicies => Set<CancellationPolicy>();
+    public DbSet<CancellationStatement> CancellationStatements => Set<CancellationStatement>();
+    public DbSet<EventReview> Reviews => Set<EventReview>();
+    public DbSet<ServiceReview> ServiceReviews => Set<ServiceReview>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,6 +71,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         order.Property(item => item.ExecutionState).HasDefaultValue("not-planned");
         order.Property(item => item.RentalDiscount).HasPrecision(18, 2);
         order.Property(item => item.PromotionPercent).HasPrecision(5, 2);
+        order.Property(item => item.EarlyCancellationPercent).HasPrecision(5, 2);
+        order.Property(item => item.LateCancellationPercent).HasPrecision(5, 2);
+        order.HasIndex(item => new { item.Status, item.EndDate });
         premise.Property(item => item.PromotionPercent).HasPrecision(5, 2);
         order.HasIndex(item => new { item.PremiseId, item.EventDate, item.EndDate });
         order.HasOne(item => item.Client).WithMany().HasForeignKey(item => item.ClientId).OnDelete(DeleteBehavior.Restrict);
@@ -117,5 +125,35 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         brief.HasOne(b => b.Plan).WithMany().HasForeignKey(b => b.PlanId).OnDelete(DeleteBehavior.Restrict);
         brief.HasIndex(b => new { b.PlanId, b.PlanVersion, b.TaskId }).IsUnique();
         brief.HasIndex(b => new { b.StaffId, b.SupersededAt });
+
+        var policy = modelBuilder.Entity<CancellationPolicy>();
+        policy.ToTable("cancellation_policies", t => t.HasCheckConstraint("CK_policy_rates", "\"EarlyPercent\" BETWEEN 0 AND 100 AND \"LatePercent\" BETWEEN 0 AND 100 AND \"CutoffHours\" BETWEEN 1 AND 8760"));
+        policy.HasIndex(p => p.Version).IsUnique();
+        policy.Property(p => p.EarlyPercent).HasPrecision(5, 2);
+        policy.Property(p => p.LatePercent).HasPrecision(5, 2);
+        var statement = modelBuilder.Entity<CancellationStatement>();
+        statement.ToTable("cancellation_statements");
+        statement.HasIndex(c => c.OrderId).IsUnique();
+        statement.HasIndex(c => c.Number).IsUnique();
+        statement.Property(c => c.RatePercent).HasPrecision(5, 2);
+        foreach (var field in new[] { "OrderAmount", "PaidAmount", "PenaltyAmount", "RefundAmount", "AmountDue" })
+            statement.Property<decimal>(field).HasPrecision(18, 2);
+        statement.Property(c => c.Reason).HasMaxLength(1000);
+        statement.HasOne(c => c.Order).WithMany().HasForeignKey(c => c.OrderId).OnDelete(DeleteBehavior.Restrict);
+        var review = modelBuilder.Entity<EventReview>();
+        review.ToTable("event_reviews", t => t.HasCheckConstraint("CK_review_rating", "\"Rating\" BETWEEN 1 AND 5"));
+        review.HasIndex(r => r.OrderId).IsUnique();
+        review.Property(r => r.Comment).HasMaxLength(2000);
+        review.HasOne(r => r.Order).WithMany().HasForeignKey(r => r.OrderId).OnDelete(DeleteBehavior.Restrict);
+        var serviceReview = modelBuilder.Entity<ServiceReview>();
+        serviceReview.ToTable("service_reviews", t => t.HasCheckConstraint("CK_service_review_rating", "\"Rating\" BETWEEN 1 AND 5"));
+        serviceReview.HasIndex(r => new { r.ReviewId, r.ServiceId }).IsUnique();
+        serviceReview.Property(r => r.ServiceName).HasMaxLength(200);
+        serviceReview.HasOne(r => r.Review).WithMany(r => r.Services).HasForeignKey(r => r.ReviewId).OnDelete(DeleteBehavior.Cascade);
+        var audit = modelBuilder.Entity<AuditEntry>();
+        audit.ToTable("audit_entries");
+        audit.Property(a => a.Action).HasMaxLength(100);
+        audit.Property(a => a.TargetId).HasMaxLength(100);
+        audit.HasIndex(a => a.At);
     }
 }

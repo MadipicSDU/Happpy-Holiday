@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { CalendarDays, ArrowRight, Eye, EyeOff, Building2, Check } from 'lucide-react';
+import { CalendarDays, ArrowRight, Eye, EyeOff, Building2, Check, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
-import { ErrorNotice } from '../components/UI';
+import { ErrorNotice, Req, RequiredNote } from '../components/UI';
 export default function Auth({ onLogin, initialMessage }) {
   const [isLogin, setIsLogin] = useState(true), [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ displayName: '', email: '', password: '', phone: '' });
@@ -24,12 +24,12 @@ export default function Auth({ onLogin, initialMessage }) {
     <section className="auth-panel"><div className="auth-form-wrap"><p className="eyebrow">{isLogin ? 'Welcome back' : 'Your next occasion starts here'}</p><h2>{isLogin ? 'Sign in to your workspace' : 'Create your account'}</h2><p className="muted">{isLogin ? 'Manage your bookings and keep your plans in view.' : 'Find event spaces and submit your first booking.'}</p>
       {initialMessage && !error && <div className="notice notice-warning" role="status">{initialMessage}</div>}<ErrorNotice message={error} />
       <form onSubmit={submit}>
-        <fieldset disabled={loading}>
-          {!isLogin && <><label className="field">Full name<input autoComplete="name" required minLength={2} maxLength={100} {...field('displayName')} placeholder="Your full name" /></label>
+        <fieldset disabled={loading} aria-busy={loading}><RequiredNote />
+          {!isLogin && <><label className="field"><span className="field-label">Full name<Req /></span><input autoComplete="name" required minLength={2} maxLength={100} {...field('displayName')} placeholder="Your full name" /></label>
             <label className="field">Phone <span className="optional">Optional</span><input type="tel" autoComplete="tel" maxLength={20} {...field('phone')} placeholder="+7 700 123 4567" /></label></>}
-          <label className="field">Email address<input type="email" autoComplete="email" required maxLength={254} {...field('email')} placeholder="you@example.com" /></label>
-          <div className="field"><label htmlFor="auth-password">Password</label><div className="password-field"><input id="auth-password" type={showPassword ? 'text' : 'password'} autoComplete={isLogin ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} {...field('password')} /><button type="button" className="icon-button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{!isLogin && <span className="field-help">Use at least 8 characters.</span>}</div>
-          <button className="button primary full" type="submit">{loading ? 'Please wait…' : isLogin ? 'Sign in' : 'Create account'}{!loading && <ArrowRight size={18} />}</button>
+          <label className="field"><span className="field-label">Email address<Req /></span><input type="email" autoComplete="email" required maxLength={254} {...field('email')} placeholder="you@example.com" /></label>
+          <div className="field"><label htmlFor="auth-password">Password<Req /></label><div className="password-field"><input id="auth-password" type={showPassword ? 'text' : 'password'} autoComplete={isLogin ? 'current-password' : 'new-password'} required minLength={8} maxLength={128} {...field('password')} /><button type="button" className="icon-button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{!isLogin && <span className="field-help">Use at least 8 characters.</span>}</div>
+          <button className="button primary full" type="submit">{loading ? <><Loader2 className="spin" size={17} aria-hidden="true" />{isLogin ? 'Signing in…' : 'Creating account…'}</> : isLogin ? 'Sign in' : 'Create account'}{!loading && <ArrowRight size={18} />}</button>
         </fieldset>
       </form><p className="auth-switch">{isLogin ? 'New to Happy Holiday?' : 'Already have an account?'} <button className="text-button" disabled={loading} onClick={() => { setIsLogin(!isLogin); setError(''); }}>{isLogin ? 'Create an account' : 'Sign in'}</button></p>
       <p className="auth-footnote"><Building2 size={15} />A simpler way to plan your event space.</p>

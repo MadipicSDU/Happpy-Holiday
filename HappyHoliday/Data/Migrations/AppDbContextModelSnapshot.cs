@@ -70,6 +70,183 @@ namespace HappyHoliday.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("HappyHoliday.Models.AuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("At");
+
+                    b.ToTable("audit_entries", (string)null);
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.CancellationPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CutoffHours")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("EarlyPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("LatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Version")
+                        .IsUnique();
+
+                    b.ToTable("cancellation_policies", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_policy_rates", "\"EarlyPercent\" BETWEEN 0 AND 100 AND \"LatePercent\" BETWEEN 0 AND 100 AND \"CutoffHours\" BETWEEN 1 AND 8760");
+                        });
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.CancellationStatement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AmountDue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDemo")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsLate")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("OrderAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("OrderRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("PenaltyAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("PolicyVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("RatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal>("RefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("SettledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SettlementReference")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.ToTable("cancellation_statements", (string)null);
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.EventReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("OrderId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.ToTable("event_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_review_rating", "\"Rating\" BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("HappyHoliday.Models.EventService", b =>
                 {
                     b.Property<Guid>("Id")
@@ -313,6 +490,9 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -335,6 +515,16 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("EarlyCancellationPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -350,6 +540,10 @@ namespace HappyHoliday.Data.Migrations
                     b.Property<int>("ExpectedGuests")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("LateCancellationPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
                     b.Property<bool>("LegacyEstimate")
                         .HasColumnType("boolean");
 
@@ -362,6 +556,9 @@ namespace HappyHoliday.Data.Migrations
 
                     b.Property<DateTime?>("PaymentConfirmedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PenaltyPolicyVersion")
+                        .HasColumnType("integer");
 
                     b.Property<Guid?>("PendingChangeId")
                         .HasColumnType("uuid");
@@ -411,6 +608,8 @@ namespace HappyHoliday.Data.Migrations
                     b.HasIndex("ClientId");
 
                     b.HasIndex("ManagerId");
+
+                    b.HasIndex("Status", "EndDate");
 
                     b.HasIndex("PremiseId", "EventDate", "EndDate");
 
@@ -600,6 +799,59 @@ namespace HappyHoliday.Data.Migrations
                     b.ToTable("premises", (string)null);
                 });
 
+            modelBuilder.Entity("HappyHoliday.Models.ServiceReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ReviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ServiceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewId", "ServiceId")
+                        .IsUnique();
+
+                    b.ToTable("service_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_service_review_rating", "\"Rating\" BETWEEN 1 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.CancellationStatement", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.EventReview", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("HappyHoliday.Models.ExecutionBrief", b =>
                 {
                     b.HasOne("HappyHoliday.Models.ExecutionPlan", "Plan")
@@ -709,6 +961,22 @@ namespace HappyHoliday.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.ServiceReview", b =>
+                {
+                    b.HasOne("HappyHoliday.Models.EventReview", "Review")
+                        .WithMany("Services")
+                        .HasForeignKey("ReviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Review");
+                });
+
+            modelBuilder.Entity("HappyHoliday.Models.EventReview", b =>
+                {
+                    b.Navigation("Services");
                 });
 
             modelBuilder.Entity("HappyHoliday.Models.ExecutionPlan", b =>

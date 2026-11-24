@@ -46,6 +46,12 @@ public class Order
     public DateTime? PaymentConfirmedAt { get; set; }
     public Guid? PendingChangeId { get; set; }
     public string ExecutionState { get; set; } = "not-planned";
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public DateTime? ArchivedAt { get; set; }
+    public int PenaltyPolicyVersion { get; set; }
+    public decimal EarlyCancellationPercent { get; set; }
+    public decimal LateCancellationPercent { get; set; }
 
     public ICollection<OrderService> OrderServices { get; set; } = new List<OrderService>();
 }

@@ -23,6 +23,7 @@ export default function BookingSummary({ venue, services, startsAt, endsAt, gues
       {pricing.services.map(line => <div className="booking-summary-line" key={line.id}><div><strong>{line.name}</strong><span>{line.quantity || '—'} × {price(line.unitPrice)}{line.category && ` · ${categoryName(line.category)}`}</span></div><strong>{price(line.amount)}</strong></div>)}
       {!pricing.services.length && <p className="small muted">Venue only. Add services from the catalogue to build your package.</p>}
       <p className="booking-summary-help">{quote ? 'Availability is checked again when you submit. Your booking goes to a manager for review.' : 'Based on current catalogue rates. Review price checks availability and the final amount before you submit.'}</p>
+      {quote?.cancellationTerms && <p className="small muted">Changes close {quote.cancellationTerms.cutoffHours} hours before the event. Cancellation costs {quote.cancellationTerms.earlyPercent}% before that deadline and {quote.cancellationTerms.latePercent}% afterwards, based on the full order value.</p>}
     </div>
     <footer className="booking-summary-total"><div><span>{quote ? 'Quoted total' : 'Estimated total'} <small>KZT</small></span><strong role="status" aria-live="polite" aria-atomic="true"><span className="sr-only">{quote ? 'Quoted total: ' : 'Estimated total: '}</span>{price(pricing.totalAmount)}</strong></div>
       {estimate?.issue && <p className="booking-summary-issue">{estimate.issue}</p>}

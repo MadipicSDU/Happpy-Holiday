@@ -21,6 +21,7 @@ Implemented against the [revised sprint plan](https://docs.google.com/document/d
 - Approval checks the current booking revision, venue availability, guest capacity, the client's simultaneous venue limit, and service stock. Accepted proposal prices remain fixed even if catalogue rates subsequently change. The client must have reviewed the same total at submission.
 - A positive unpaid balance creates a new revision invoice and requires a new payment. Already paid money is applied once. Zero balances remain covered. Negative balances create a clearly marked **demo credit note** and reduce the booking's applied paid balance; no real refund occurs. Demo credits require Development with demo payments enabled.
 - Old invoice pricing, receipts, approved proposals, and staff brief snapshots are retained. An unpaid older invoice is voided when superseded. Checkout supplies the exact invoice ID and a per-invoice idempotency key so a stale payment cannot charge a newer revision.
+- The booking dialog has a **Refresh booking** control on every tab. Clients can load a manager's decision, the current booking revision, and its revised invoice without closing the dialog. A pending request explains that the booking and invoice update after approval. Payment controls wait for the current invoice to finish loading; an earlier revision's receipt is not shown as the current payment.
 - Paid bookings cannot use the unpaid cancellation shortcut. Sprint 5's cancellation penalties, real refunds, and late change policies are outside Sprint 4.
 
 ## Execution and access rules

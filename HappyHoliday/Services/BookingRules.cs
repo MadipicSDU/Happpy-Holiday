@@ -4,7 +4,8 @@ namespace HappyHoliday.Services;
 
 public static class BookingRules
 {
-    public static bool IsActive(string status) => status is not ("cancelled" or "completed");
+    internal static readonly string[] ActiveStatuses = ["pending", "awaiting-payment", "confirmed", "change-requested"];
+    public static bool IsActive(string status) => ActiveStatuses.Contains(status);
     public static bool Overlaps(DateTime start, DateTime end, DateTime otherStart, DateTime otherEnd) =>
         start < otherEnd && otherStart < end;
 

@@ -94,6 +94,10 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 builder.Services.AddScoped<IUserRepository, PostgresUserRepository>();
 builder.Services.AddScoped<OrderingService>();
 builder.Services.AddScoped<BillingService>();
+builder.Services.AddScoped<CancellationWorkflow>();
+builder.Services.AddScoped<OrderLifecycle>();
+builder.Services.AddOptions<LifecycleOptions>().Bind(builder.Configuration.GetSection("Lifecycle")).ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddHostedService<OrderCompletionWorker>();
 builder.Services.AddOptions<OrderChangeOptions>().Bind(builder.Configuration.GetSection("OrderChanges")).ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();

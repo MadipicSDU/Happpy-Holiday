@@ -138,7 +138,7 @@ public sealed class UsersController(IUserRepository users, AppDbContext db) : Co
         if (user.Role == UserRoles.Admin && dto.Role != UserRoles.Admin
             && await db.Users.CountAsync(u => u.Role == UserRoles.Admin, ct) == 1)
             return Conflict(new ProblemDetails { Detail = "The last administrator cannot be demoted." });
-        var clientCount = await db.Orders.Where(o => o.ManagerId == id && o.Status != "cancelled" && o.Status != "completed")
+        var clientCount = await db.Orders.Where(o => o.ManagerId == id && BookingRules.ActiveStatuses.Contains(o.Status))
             .Select(o => o.ClientId).Distinct().CountAsync(ct);
         if (dto.ClientLimit.HasValue && dto.ClientLimit.Value < clientCount)
             return Conflict(new ProblemDetails { Detail = "Client limit cannot be lower than the current active client count." });

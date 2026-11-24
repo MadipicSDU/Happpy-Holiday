@@ -2,7 +2,8 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, X } from 'lucide-react';
 
-export default function Modal({ isOpen, onClose, title, children, footer, busy = false, wide = false, sidePanel, tabs, activeTab, onTabChange, steps = false }) {
+// summary (optional): a fixed left column that stays visible across tabs; subtitle: one line under the title.
+export default function Modal({ isOpen, onClose, title, subtitle, children, footer, busy = false, wide = false, sidePanel, summary, tabs, activeTab, onTabChange, steps = false }) {
   const ref = useRef(null), titleId = useId(), closeRef = useRef(onClose), busyRef = useRef(busy);
   closeRef.current = onClose; busyRef.current = busy;
   useEffect(() => {
@@ -26,19 +27,21 @@ export default function Modal({ isOpen, onClose, title, children, footer, busy =
     return () => { if (root) root.inert = wasInert; document.body.style.overflow = overflow; document.removeEventListener('keydown', handleKey); if (previous?.isConnected) previous.focus(); };
   }, [isOpen]);
   if (!isOpen) return null;
-  const main = <>
-    <header className="modal-header"><h2 id={titleId}>{title}</h2><button className="icon-button" onClick={onClose} disabled={busy} aria-label="Close dialog"><X size={20} /></button></header>
-    {tabs && <nav className={`modal-tabs ${steps ? 'is-steps' : ''}`} role="tablist" aria-label={steps ? 'Booking steps' : 'Sections'}>{tabs.map((tab, index) => {
+  const header = <header className="modal-header"><div className="modal-title"><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} disabled={busy} aria-label="Close dialog"><X size={20} /></button></header>;
+  const nav = tabs && <nav className={`modal-tabs ${steps ? 'is-steps' : ''}`} role={steps ? undefined : 'tablist'} aria-label={steps ? 'Booking steps' : 'Sections'}>{tabs.map((tab, index) => {
       const active = tab.id === activeTab, done = steps && tabs.findIndex(item => item.id === activeTab) > index;
-      return <button key={tab.id} type="button" role="tab" aria-selected={active} disabled={busy || tab.disabled} className={`modal-tab ${active ? 'active' : ''} ${done ? 'done' : ''}`} onClick={() => onTabChange?.(tab.id)}>
+      return <button key={tab.id} type="button" role={steps ? undefined : 'tab'} aria-selected={steps ? undefined : active} aria-current={steps && active ? 'step' : undefined} disabled={busy || tab.disabled} className={`modal-tab ${active ? 'active' : ''} ${done ? 'done' : ''}`} onClick={() => onTabChange?.(tab.id)}>
         {steps && <span className="modal-tab-index">{done ? <Check size={13} /> : index + 1}</span>}<span>{tab.label}</span>{tab.badge && <span className={`modal-tab-badge tone-${tab.badge.tone}`}>{tab.badge.label}</span>}</button>;
-    })}</nav>}
+    })}</nav>;
+  const main = <>
+    {header}{nav}
     <div className="modal-body" tabIndex={sidePanel ? 0 : undefined} role={sidePanel ? 'region' : undefined} aria-label={sidePanel ? 'Booking form and review' : undefined}>{children}</div>
     {footer && <footer className="modal-footer">{footer}</footer>}
   </>;
   return createPortal(<div className="modal-overlay" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <section ref={ref} className={`modal-content ${wide ? 'modal-wide' : ''} ${sidePanel ? 'modal-with-sidepanel' : ''} ${tabs ? 'modal-tabbed' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-      {sidePanel ? <><div className="modal-main">{main}</div><aside className="modal-sidepanel" aria-label="Booking receipt">{sidePanel}</aside></> : main}
+    <section ref={ref} className={`modal-content ${wide ? 'modal-wide' : ''} ${sidePanel ? 'modal-with-sidepanel' : ''} ${summary ? 'modal-with-summary' : ''} ${tabs ? 'modal-tabbed' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      {summary ? <>{header}<div className="modal-split"><aside className="modal-summary" aria-label="Order summary">{summary}</aside><div className="modal-pane">{nav}<div className="modal-body">{children}</div></div></div>{footer && <footer className="modal-footer">{footer}</footer>}</>
+        : sidePanel ? <><div className="modal-main">{main}</div><aside className="modal-sidepanel" aria-label="Booking receipt">{sidePanel}</aside></> : main}
     </section>
   </div>, document.body);
 }

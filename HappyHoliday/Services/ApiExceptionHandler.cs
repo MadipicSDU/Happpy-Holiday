@@ -19,10 +19,12 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         };
         if (status == 500) logger.LogError(exception, "Unhandled API error");
         context.Response.StatusCode = status;
-        await context.Response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+        var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
         {
             Status = status, Title = status == 500 ? "Server error" : "Request rejected", Detail = detail
-        }, ct);
+        };
+        if (exception is BookingException { Code: { } code }) problem.Extensions["code"] = code;
+        await context.Response.WriteAsJsonAsync(problem, ct);
         return true;
     }
 }

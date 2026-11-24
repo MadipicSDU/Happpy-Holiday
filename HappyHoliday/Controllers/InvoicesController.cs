@@ -35,7 +35,7 @@ public sealed class InvoicesController(AppDbContext db, TimeProvider clock, IHos
     private async Task CheckAvailable(Order order, CancellationToken ct)
     {
         if (order.EventDate <= clock.GetUtcNow().UtcDateTime) throw new BookingException(409, "The rental period has already started. Contact your manager.");
-        if (await db.Orders.AnyAsync(o => o.Id != order.Id && o.PremiseId == order.PremiseId && o.Status != "cancelled" && o.Status != "completed"
+        if (await db.Orders.AnyAsync(o => o.Id != order.Id && o.PremiseId == order.PremiseId && BookingRules.ActiveStatuses.Contains(o.Status)
             && o.EventDate < order.EndDate && o.EndDate > order.EventDate, ct))
             throw new BookingException(409, "This venue has a conflicting reservation. Check alternatives before issuing or paying the invoice.");
     }

@@ -1,0 +1,242 @@
+[
+{
+"name": "Grand Ballroom Atrium",
+"address": "123 Main St",
+"description": "Opulent chandelier hall with double-height ceiling and bespoke banquet tables.",
+"capacity": 250,
+"pricePerHour": 2400,
+"imageUrl": "https://images.unsplash.com/photo-1780593116478-c46838f86523?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Crystal Greenhouse",
+"address": "456 Garden Blvd",
+"description": "Lush enclosed garden under vintage iron glass arches with warm string lighting.",
+"capacity": 160,
+"pricePerHour": 1800,
+"imageUrl": "https://images.unsplash.com/photo-1783522332339-0e9ccef91c5d?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Warehouse Atrium",
+"address": "789 Industry Way",
+"description": "Polished concrete floors, exposed brick accents and flexible modular stage architecture.",
+"capacity": 220,
+"pricePerHour": 1500,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Whispering Pines Lodge",
+"address": "101 Mountain Rd",
+"description": "Warm timber interiors with grand stone fireplace and panoramic mountain views.",
+"capacity": 120,
+"pricePerHour": 1950,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Horizon Skyline Terrace",
+"address": "202 Rooftop Ave",
+"description": "High-altitude open sky lounge with illuminated city skyline backdrop and modern cocktail bar.",
+"capacity": 150,
+"pricePerHour": 2200,
+"imageUrl": "https://images.unsplash.com/photo-1643856557143-09189e523fd6?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Metropolitan Symphony Hall",
+"address": "303 Arts St",
+"description": "Historic auditorium crafted with pristine acoustics and concert-grade AV system.",
+"capacity": 350,
+"pricePerHour": 3200,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Amber Banquet Hall",
+"address": "12 Celebration Avenue",
+"description": "Warm-toned banquet room with a dance floor and flexible dinner seating.",
+"capacity": 180,
+"pricePerHour": 1700,
+"imageUrl": "https://images.unsplash.com/photo-1783314867628-220ab03cac99?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Willow Garden Pavilion",
+"address": "28 Willow Lane",
+"description": "Covered garden pavilion for daytime receptions and family gatherings.",
+"capacity": 100,
+"pricePerHour": 1200,
+"imageUrl": "https://images.unsplash.com/photo-1783522332339-0e9ccef91c5d?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Copper Loft",
+"address": "44 Foundry Street",
+"description": "Industrial loft with exposed beams and open space for creative events.",
+"capacity": 80,
+"pricePerHour": 1100,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Pearl Wedding Ballroom",
+"address": "60 Pearl Boulevard",
+"description": "Formal ballroom with a central dance floor and space for a wedding stage.",
+"capacity": 300,
+"pricePerHour": 2900,
+"imageUrl": "https://images.unsplash.com/photo-1780593116478-c46838f86523?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Riverstone Meeting Centre",
+"address": "76 Riverside Road",
+"description": "Conference space with modular seating for seminars and business presentations.",
+"capacity": 140,
+"pricePerHour": 1600,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Juniper Private Dining Room",
+"address": "92 Juniper Walk",
+"description": "Intimate dining room for small celebrations and private dinners.",
+"capacity": 30,
+"pricePerHour": 650,
+"imageUrl": "https://images.unsplash.com/photo-1783314867628-220ab03cac99?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Lantern Courtyard",
+"address": "108 Heritage Lane",
+"description": "Open-air courtyard with sheltered edges for evening receptions.",
+"capacity": 110,
+"pricePerHour": 1400,
+"imageUrl": "https://images.unsplash.com/photo-1783522332339-0e9ccef91c5d?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Aurora Exhibition Gallery",
+"address": "124 Gallery Street",
+"description": "Bright gallery space with open walls for exhibitions and product launches.",
+"capacity": 130,
+"pricePerHour": 1550,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Cedar Lakeside Lodge",
+"address": "140 Lakeside Drive",
+"description": "Timber lodge with an indoor gathering room and views over the lake.",
+"capacity": 90,
+"pricePerHour": 1500,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Meridian Auditorium",
+"address": "156 University Avenue",
+"description": "Tiered auditorium suited to lectures, screenings, and panel discussions.",
+"capacity": 450,
+"pricePerHour": 3400,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Olive Community Hall",
+"address": "172 Community Road",
+"description": "Flexible community room for workshops, birthdays, and neighbourhood events.",
+"capacity": 75,
+"pricePerHour": 800,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Bluebird Studio",
+"address": "188 Studio Lane",
+"description": "Compact creative studio for photo sessions and small group workshops.",
+"capacity": 20,
+"pricePerHour": 500,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Velvet Lounge",
+"address": "204 Theatre Street",
+"description": "Softly lit lounge with conversational seating for social receptions.",
+"capacity": 60,
+"pricePerHour": 1000,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Orchard Family Pavilion",
+"address": "220 Orchard Road",
+"description": "Garden-side pavilion with room for family celebrations and shared meals.",
+"capacity": 125,
+"pricePerHour": 1350,
+"imageUrl": "https://images.unsplash.com/photo-1783522332339-0e9ccef91c5d?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Summit Conference Hall",
+"address": "236 Summit Avenue",
+"description": "Large conference hall with flexible arrangements for talks and networking.",
+"capacity": 280,
+"pricePerHour": 2600,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Mosaic Workshop Space",
+"address": "252 Artisan Street",
+"description": "Open workshop room for hands-on classes and collaborative activities.",
+"capacity": 40,
+"pricePerHour": 700,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Golden Hour Rooftop",
+"address": "268 Sunset Boulevard",
+"description": "Rooftop event area for small receptions with sunset skyline views.",
+"capacity": 85,
+"pricePerHour": 1750,
+"imageUrl": "https://images.unsplash.com/photo-1643856557143-09189e523fd6?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Magnolia Reception Hall",
+"address": "284 Magnolia Lane",
+"description": "Light-filled reception room for weddings, anniversaries, and formal dinners.",
+"capacity": 200,
+"pricePerHour": 2100,
+"imageUrl": "https://images.unsplash.com/photo-1783314867628-220ab03cac99?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Foundry Event Hall",
+"address": "300 Foundry Avenue",
+"description": "Spacious industrial hall with adaptable zones for launches and performances.",
+"capacity": 400,
+"pricePerHour": 3000,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Sapphire Music Room",
+"address": "316 Music Street",
+"description": "Indoor performance room for small concerts and music-led celebrations.",
+"capacity": 95,
+"pricePerHour": 1450,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Maple Retreat House",
+"address": "332 Woodland Drive",
+"description": "Quiet retreat house with a gathering room for small team and family events.",
+"capacity": 45,
+"pricePerHour": 900,
+"imageUrl": "https://images.unsplash.com/photo-1777326587610-1ddcce610a5c?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Seabreeze Terrace",
+"address": "348 Waterfront Road",
+"description": "Open terrace with covered seating for relaxed daytime receptions.",
+"capacity": 165,
+"pricePerHour": 1850,
+"imageUrl": "https://images.unsplash.com/photo-1643856557143-09189e523fd6?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "Rosewood Celebration Hall",
+"address": "364 Rosewood Avenue",
+"description": "Traditional celebration hall with banquet seating and a dedicated stage area.",
+"capacity": 240,
+"pricePerHour": 2300,
+"imageUrl": "https://images.unsplash.com/photo-1783314867628-220ab03cac99?auto=format&fit=crop&w=1200&q=80"
+},
+{
+"name": "The Northstar Event Centre",
+"address": "380 Northstar Boulevard",
+"description": "Large multipurpose event centre for exhibitions, conferences, and gala dinners.",
+"capacity": 600,
+"pricePerHour": 4200,
+"imageUrl": "https://images.unsplash.com/photo-1769667693219-4d8e44b6a3b3?auto=format&fit=crop&w=1200&q=80"
+}
+]

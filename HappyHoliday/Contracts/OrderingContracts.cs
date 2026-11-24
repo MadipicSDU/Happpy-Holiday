@@ -1,10 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace HappyHoliday.Contracts;
 
 public sealed class CreateOrderDto
 {
     public Guid PremiseId { get; init; }
+    public int? ExpectedPolicyVersion { get; init; }
+    [StringLength(64, MinimumLength = 64)] public string? ExpectedQuoteVersion { get; init; }
     public DateTimeOffset? StartsAt { get; init; }
     public DateTimeOffset? EndsAt { get; init; }
     // Compatibility with the existing client. Explicit periods allow fractional hours.
@@ -19,7 +22,9 @@ public sealed record ServiceSelection(Guid ServiceId, [Range(1, 100000)] int Qua
 public sealed record PriceLine(Guid Id, string Name, string Category, decimal UnitPrice, decimal Quantity, decimal Amount);
 public sealed record OrderQuote(Guid PremiseId, string PremiseName, string Address, DateTime StartsAt,
     DateTime EndsAt, decimal DurationHours, PriceLine Rental, IReadOnlyList<PriceLine> Services, decimal TotalAmount,
-    string Currency = "KZT", bool LegacyEstimate = false, decimal RentalDiscount = 0, decimal PromotionPercent = 0);
+    string Currency = "KZT", bool LegacyEstimate = false, decimal RentalDiscount = 0, decimal PromotionPercent = 0,
+    CancellationTerms? CancellationTerms = null, string? QuoteVersion = null);
+public sealed record CancellationTerms(int Version, int CutoffHours, decimal EarlyPercent, decimal LatePercent);
 
 public sealed record PayInvoiceDto(Guid IdempotencyKey, string Outcome = "success", Guid? InvoiceId = null);
 public sealed class AvailabilityDto
@@ -34,7 +39,11 @@ public sealed record OrderResponse(string Id, Guid ClientId, string? Client, Gui
     string Venue, string Address, string EventDate, DateTime StartsAt, DateTime EndsAt, string Status,
     string StatusLabel, string Amount, decimal TotalAmount, int Guests, OrderQuote Pricing, OrderCancellation? Cancellation = null,
     int Revision = 1, DateTime? ChangeDeadline = null, Guid? PendingChangeId = null, decimal PaidAmount = 0,
-    DateTime? PaymentConfirmedAt = null, string ExecutionState = "not-planned");
+    DateTime? PaymentConfirmedAt = null, string ExecutionState = "not-planned", DateTime? CreatedAt = null,
+    DateTime? CompletedAt = null, DateTime? ArchivedAt = null, StaffProgress? Staff = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ChangeOutcome? LatestChange = null);
+public sealed record ChangeOutcome(Guid Id, string Status);
+public sealed record StaffProgress(int Total, int Sent, int Acknowledged, int InProgress, int Completed);
 public sealed record OrderCancellation(Guid UserId, string Name, string Role, DateTime At);
 public sealed record UpdateStatusDto([Required] string Status);
 

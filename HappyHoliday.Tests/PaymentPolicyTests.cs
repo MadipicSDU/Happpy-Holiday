@@ -30,6 +30,9 @@ public sealed class PaymentPolicyTests
             var controller = new InvoicesController(db, TimeProvider.System, new EnvironmentStub(environment), config, new BillingService(db));
             try { await controller.Pay("example", new PayInvoiceDto(Guid.NewGuid()), CancellationToken.None); Assert.Fail("Payment must be disabled."); }
             catch (BookingException error) { Assert.AreEqual(503, error.Status); }
+            var cancellations = new CancellationsController(db, new CancellationWorkflow(db, TimeProvider.System), TimeProvider.System, new EnvironmentStub(environment), config);
+            try { await cancellations.Settle("example", CancellationToken.None); Assert.Fail("Demo cancellation settlement must be disabled."); }
+            catch (BookingException error) { Assert.AreEqual(503, error.Status); }
         }
     }
 }

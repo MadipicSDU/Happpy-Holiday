@@ -19,7 +19,7 @@ using Npgsql;
 namespace HappyHoliday.Tests;
 
 [TestClass, DoNotParallelize]
-public sealed class BackendTests
+public sealed partial class BackendTests
 {
     private const string Key = "sprint2-integration-test-key-with-32-characters";
     private static Process? _server;
@@ -74,6 +74,7 @@ public sealed class BackendTests
         launch.Environment["Jwt__Issuer"] = "HappyHoliday.Api";
         launch.Environment["Jwt__Audience"] = "HappyHoliday.Client";
         launch.Environment["SeedDemoData"] = "false";
+        launch.Environment["Lifecycle__Enabled"] = "false";
         foreach (var seed in new[] { "ManagerSeed", "AdminSeed" })
             foreach (var field in new[] { "Email", "Password", "DisplayName" }) launch.Environment[$"{seed}__{field}"] = "";
         _server = new Process { StartInfo = launch };
@@ -116,7 +117,7 @@ public sealed class BackendTests
     public async Task Seed()
     {
         await using var db = Database();
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE order_services, orders, users, premises, event_services CASCADE");
+        await db.Database.ExecuteSqlRawAsync("TRUNCATE order_services, orders, users, premises, event_services, cancellation_policies, audit_entries CASCADE");
         AppUser User(string role, string name)
         {
             var user = new AppUser { DisplayName = name, Email = name + "@test.local", NormalizedEmail = (name + "@test.local").ToUpperInvariant(),
@@ -142,7 +143,7 @@ public sealed class BackendTests
         var http = new HttpClient { BaseAddress = new Uri(_baseUrl) };
         if (user is not null)
         {
-            var tokens = new TokenService(Microsoft.Extensions.Options.Options.Create(new JwtOptions { Key = Key, Issuer = "HappyHoliday.Api", Audience = "HappyHoliday.Client" }));
+            var tokens = new TokenService(Microsoft.Extensions.Options.Options.Create(new JwtOptions { Key = Key, Issuer = "HappyHoliday.Api", Audience = "HappyHoliday.Client", ExpirationMinutes = 1440 }));
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.CreateToken(user).AccessToken);
         }
         return http;
@@ -238,6 +239,10 @@ public sealed class BackendTests
         var changed = await Body(await client.GetAsync($"/api/orders/{id}")); Assert.AreEqual(180.77m, changed.GetProperty("totalAmount").GetDecimal());
         var pending = await Change(client, changed, Request(2));
         await Check(await client.PostAsync(path + $"/{pending.GetProperty("id").GetGuid()}/withdraw", null), HttpStatusCode.OK);
+        var refreshed = await Body(await client.GetAsync("/api/orders"));
+        var outcome = refreshed.EnumerateArray().Single(order => order.GetProperty("id").GetString() == id).GetProperty("latestChange");
+        Assert.AreEqual(pending.GetProperty("id").GetGuid(), outcome.GetProperty("id").GetGuid());
+        Assert.AreEqual("withdrawn", outcome.GetProperty("status").GetString());
         await using (var db = Database()) { var record = await db.Orders.SingleAsync(o => o.Id == id); record.EventDate = DateTime.UtcNow.AddDays(6); record.EndDate = record.EventDate.AddHours(2); await db.SaveChangesAsync(); }
         await Check(await client.PostAsJsonAsync(path + "/quote", new { expectedRevision = 2, booking = Request(2) }), HttpStatusCode.Conflict);
     }
@@ -350,8 +355,19 @@ public sealed class BackendTests
         var query = "/api/management/dashboard?from=" + Uri.EscapeDataString(new DateTimeOffset(now.AddHours(-1)).ToString("O")) + "&to=" + Uri.EscapeDataString(new DateTimeOffset(now.AddHours(1)).ToString("O"));
         var liveResponse = await admin.GetAsync(query); await Check(liveResponse, HttpStatusCode.OK);
         Assert.AreEqual(1, (await Body(liveResponse)).GetProperty("counts").GetProperty("activeServices").GetInt32());
+        using var manager = Http(_managers[0]);
+        var ordersResponse = await manager.GetAsync("/api/orders");
+        await Check(ordersResponse, HttpStatusCode.OK);
+        var staffProgress = (await Body(ordersResponse))[0].GetProperty("staff");
+        Assert.AreEqual(1, staffProgress.GetProperty("total").GetInt32());
+        Assert.AreEqual(1, staffProgress.GetProperty("inProgress").GetInt32());
+        using var otherManager = Http(_managers[1]);
+        await Check(await otherManager.GetAsync($"/api/orders/{orderId}"), HttpStatusCode.NotFound);
         await Check(await worker.PatchAsJsonAsync("/api/staff/briefs/" + briefId, new { status = "completed" }), HttpStatusCode.OK);
         Assert.AreEqual(0, (await Body(await admin.GetAsync(query))).GetProperty("counts").GetProperty("activeServices").GetInt32());
+        var detailResponse = await manager.GetAsync($"/api/orders/{orderId}");
+        await Check(detailResponse, HttpStatusCode.OK);
+        Assert.AreEqual(1, (await Body(detailResponse)).GetProperty("staff").GetProperty("completed").GetInt32());
         await Check(await admin.DeleteAsync("/api/users/" + _staff[0].Id), HttpStatusCode.Conflict);
         await Check(await admin.PutAsJsonAsync("/api/users/" + _staff[0].Id, new { name = _staff[0].DisplayName, email = _staff[0].Email, role = "client" }), HttpStatusCode.Conflict);
         await Check(await admin.PutAsJsonAsync($"/api/orders/{orderId}/execution", PlanBody(3, _staff[1].Id)), HttpStatusCode.Conflict);

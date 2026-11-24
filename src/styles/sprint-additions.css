@@ -1,0 +1,59 @@
+.sprint-order-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.sprint-order-tools .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sprint-addition { margin-top: 24px; }
+.reports-view { padding-top: 16px; }
+.report-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; margin-bottom: 24px; }
+.report-scroll-hint { display: none; }
+.reports-view .table-card table { min-width: 760px; }
+.report-meter { width: 100%; accent-color: var(--green); }
+.feedback-list, .schedule-activities { display: grid; gap: 12px; }
+.feedback-list article, .schedule-activities article { padding: 18px; }
+.policy-panel { padding: 20px; }
+.reports-view .policy-panel { margin-top: 24px; }
+.policy-panel .row-actions { flex-wrap: wrap; justify-content: flex-start; }
+.policy-panel .row-actions .button { white-space: normal; }
+.policy-panel .form-grid, .review-form fieldset { display: grid; gap: 14px; }
+.printable-document .reference { overflow-wrap: anywhere; }
+
+@media (max-width: 650px) {
+  .report-scroll-hint { display: block; }
+}
+
+@media print {
+  body.has-order-page:has(.op-body :is(.invoice-document, .payment-success, .printable-document)) { overflow: visible; }
+  body.has-order-page:has(.op-body .invoice-document) #root { display: block; }
+  body.has-order-page .order-page .op-grid,
+  body.has-order-page .order-page .op-main,
+  body.has-order-page .order-page .op-body {
+    display: block;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    border: 0;
+    padding: 0;
+  }
+  body.has-order-page .op-crumbs,
+  body.has-order-page .op-rail,
+  body.has-order-page .op-actions,
+  body.has-order-page .workspace-bar,
+  body.has-order-page .sidebar,
+  body.has-order-page .sprint-order-tools,
+  .printable-document button,
+  .reports-view .report-controls,
+  .reports-view .report-scroll-hint { display: none; }
+  .reports-view .table-card { overflow: visible; }
+  .reports-view .table-card table { min-width: 0; }
+}
+.status-expired { background: #f0f1eb; color: #535a50; }
+.order-page .op-main { scroll-margin-top: calc(var(--bar-h, 72px) + 16px); }

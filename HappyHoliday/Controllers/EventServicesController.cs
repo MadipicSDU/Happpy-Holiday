@@ -1,6 +1,7 @@
 using HappyHoliday.Authentication;
 using HappyHoliday.Data;
 using HappyHoliday.Models;
+using HappyHoliday.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -97,8 +98,8 @@ public sealed class EventServicesController(AppDbContext database) : ControllerB
         if (updatedService.ConcurrentCapacity is { } capacity)
         {
             var now = DateTime.UtcNow;
-            var reservations = await database.OrderServices.Where(s => s.EventServiceId == id && s.Order!.Status != "cancelled"
-                && s.Order.Status != "completed" && s.Order.EndDate > now)
+            var reservations = await database.OrderServices.Where(s => s.EventServiceId == id && BookingRules.ActiveStatuses.Contains(s.Order!.Status)
+                && s.Order.EndDate > now)
                 .Select(s => new { s.Quantity, s.Order!.EventDate, s.Order.EndDate }).ToListAsync(cancellationToken);
             if (HappyHoliday.Services.BookingRules.PeakUnits(reservations.Select(r => (r.EventDate, r.EndDate, r.Quantity)), now, DateTime.MaxValue) > capacity)
                 return Conflict(new ProblemDetails { Detail = "Capacity cannot be lower than the units already reserved at the same time." });

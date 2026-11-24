@@ -24,11 +24,79 @@ export function bookingPayload(venue, startsAt, endsAt, guests, quantities) {
   });
   return { premiseId: venue.id, startsAt: start.toISOString(), endsAt: end.toISOString(), guests: Number(guests), services };
 }
-export const statusNames = { pending: 'Pending review', 'awaiting-payment': 'Awaiting payment', confirmed: 'Confirmed', 'change-requested': 'Change requested', completed: 'Completed', cancelled: 'Cancelled' };
-export const cancellable = order => ['pending', 'awaiting-payment'].includes(order.status) && !(order.paidAmount > 0);
-export const activeOrder = order => !['completed', 'cancelled'].includes(order.status);
+export const statusNames = { pending: 'Pending review', 'awaiting-payment': 'Awaiting payment', confirmed: 'Confirmed', 'change-requested': 'Change requested', completed: 'Completed', cancelled: 'Cancelled', expired: 'Expired' };
+// One order lifecycle shown everywhere (manager list, order page, client portal):
+// Pending review → Awaiting payment → Confirmed (paid) → Schedule draft → Schedule finalized → Staff notified → Completed.
+// A change request waiting for the manager overrides the stage; an approved change with a price difference returns to
+// "Awaiting extra payment" and, once paid, back to Confirmed with "Needs rescheduling" until the plan is sent again.
+export const stageNames = {
+  pending: 'Pending review', 'change-review': 'Change pending review', 'awaiting-payment': 'Awaiting payment', 'awaiting-difference': 'Awaiting extra payment',
+  confirmed: 'Confirmed · paid', finalizing: 'Schedule draft', finalized: 'Schedule finalized', 'needs-rescheduling': 'Needs rescheduling',
+  dispatched: 'Staff notified', 'in-execution': 'In execution', executed: 'Execution done', completed: 'Completed', cancelled: 'Cancelled', expired: 'Expired',
+};
+export function orderStage(order) {
+  if (!order) return 'pending';
+  if (!activeOrder(order)) return order.status;
+  if (order.pendingChangeId) return 'change-review';
+  if (order.status === 'awaiting-payment') return Number(order.paidAmount) > 0 ? 'awaiting-difference' : 'awaiting-payment';
+  if (order.status !== 'confirmed') return order.status;
+  const staff = order.staff;
+  switch (order.executionState) {
+    case 'draft': return 'finalizing';
+    case 'finalized': return 'finalized';
+    case 'needs-rescheduling': return 'needs-rescheduling';
+    case 'dispatched': return staff?.total && staff.completed === staff.total ? 'executed' : staff?.inProgress || staff?.completed ? 'in-execution' : 'dispatched';
+    default: return 'confirmed';
+  }
+}
+// Staff column: what the people assigned to the event have done with their briefs.
+export function staffSummary(order) {
+  const staff = order.staff;
+  if (order.status === 'cancelled') return { tone: 'muted', label: 'Withdrawn', detail: '' };
+  if (order.status === 'expired') return { tone: 'muted', label: 'No staff assigned', detail: '' };
+  if (!staff?.total) {
+    if (order.status !== 'confirmed') return { tone: 'muted', label: 'Not needed yet', detail: 'Opens after payment' };
+    return order.executionState === 'finalized' ? { tone: 'warn', label: 'Ready to send', detail: 'Schedule finalized' }
+      : order.executionState === 'draft' ? { tone: 'warn', label: 'Not sent', detail: 'Schedule is a draft' }
+      : order.executionState === 'needs-rescheduling' ? { tone: 'warn', label: 'Not sent', detail: 'Booking changed · plan again' }
+      : { tone: 'warn', label: 'Not planned', detail: 'Create the schedule' };
+  }
+  const people = `${staff.total} ${staff.total === 1 ? 'brief' : 'briefs'}`;
+  if (staff.completed === staff.total) return { tone: 'ok', label: 'All completed', detail: people };
+  if (staff.inProgress) return { tone: 'info', label: `${staff.inProgress} in progress`, detail: `${staff.completed}/${staff.total} completed` };
+  const confirmed = staff.acknowledged + staff.completed;
+  if (staff.sent) return { tone: 'warn', label: `${confirmed}/${staff.total} acknowledged`, detail: `${staff.sent} waiting for staff` };
+  return { tone: 'ok', label: 'All acknowledged', detail: people };
+}
+export const cancellable = order => ['pending', 'awaiting-payment', 'confirmed'].includes(order.status)
+  && (!order.startsAt || new Date(order.startsAt) > new Date());
+export const activeOrder = order => !['completed', 'cancelled', 'expired'].includes(order.status);
 export { serviceCategoryName as categoryName } from './serviceCatalogue.js';
 export function nextOrder(orders, now = new Date()) {
   return orders.filter(order => activeOrder(order) && new Date(order.endsAt) > now)
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))[0];
+}
+
+// ── Review fixes: one date/time language across the app (#32), short references (#31) ──
+const dayFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const dayYearFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const timeFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+export const day = value => (new Date(value).getFullYear() === new Date().getFullYear() ? dayFormat : dayYearFormat).format(new Date(value));
+export const time = value => timeFormat.format(new Date(value));
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+// "Tue, 24 Nov · 18:00–22:00" or "Tue, 24 Nov 18:00 – Wed, 25 Nov 01:00"
+export const when = item => sameDay(item.startsAt, item.endsAt) ? `${day(item.startsAt)} · ${time(item.startsAt)}–${time(item.endsAt)}` : `${day(item.startsAt)} ${time(item.startsAt)} – ${day(item.endsAt)} ${time(item.endsAt)}`;
+export const hours = item => Math.round((new Date(item.endsAt) - new Date(item.startsAt)) / 360000) / 10;
+export const shortRef = id => '#' + String(id || '').replace(/^ORD-/i, '').replace(/-/g, '').slice(0, 6).toUpperCase();
+export function relative(value, now = new Date()) {
+  const ms = new Date(value) - now, d = Math.round(ms / 86400000);
+  if (Math.abs(ms) < 3600000) return ms >= 0 ? 'within the hour' : 'just now';
+  if (Math.abs(ms) < 86400000) { const h = Math.round(Math.abs(ms) / 3600000); return ms > 0 ? `in ${h} h` : `${h} h ago`; }
+  return d > 0 ? `in ${d} day${d === 1 ? '' : 's'}` : `${-d} day${d === -1 ? '' : 's'} ago`;
+}
+// change deadline as a countdown: tone drives colour (ok / soon / closed)
+export function deadline(value, now = new Date()) {
+  const ms = new Date(value) - now, days = Math.floor(ms / 86400000), h = Math.floor(ms / 3600000);
+  if (ms <= 0) return { tone: 'closed', label: 'Change window closed' };
+  return { tone: days < 3 ? 'soon' : 'ok', label: days >= 1 ? `${days} day${days === 1 ? '' : 's'} left to change` : `${h} h left to change` };
 }

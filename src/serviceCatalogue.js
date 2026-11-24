@@ -21,3 +21,13 @@ export function filterServices(services, { search = '', category = '', sort = 'n
       return names;
     });
 }
+
+// Review fix #28/#29: the six categories added in Sprint 4, and groups for the admin category picker.
+export const newCategories = ['Animators', 'Hosts', 'Musicians', 'Dancers', 'Furniture', 'Decoration'];
+export const categoryGroups = [
+  ['Performers & hosts', ['Animators', 'Hosts', 'Musicians', 'Dancers', 'Entertainment']],
+  ['Venue & setup', ['Furniture', 'Decoration', 'EquipmentRental', 'Cleaning']],
+  ['Food & drinks', ['FoodPreparation']],
+  ['People & logistics', ['EventPlanning', 'Staffing', 'Security', 'Transport', 'Photography']],
+  ['Other', ['Other']],
+];

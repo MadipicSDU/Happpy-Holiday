@@ -22,7 +22,8 @@ export function useInvoice(order, token, onRefresh) {
     catch (err) { setError(err.message); } finally { setBusy(false); }
   }, [busy, onRefresh]);
   return {
-    invoice, loading, busy, error, version,
+    invoice: invoice?.orderId === order?.id && (invoice?.revision || 1) === (order?.revision || 1) ? invoice : null,
+    loading, busy, error, version,
     refresh: () => setVersion(value => value + 1),
     generate: () => perform(() => api.invoices.generate(token, order.id)),
     deliver: () => perform(() => api.invoices.deliver(token, order.id)),

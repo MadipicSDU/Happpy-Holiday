@@ -7,11 +7,27 @@ import { filterServices, serviceCategoryName } from '../src/serviceCatalogue.js'
 import { bookingEstimate } from '../src/bookingEstimate.js';
 import { demoCardExample, formatDemoCardNumber, formatDemoExpiry, validateDemoPayment } from '../src/demoPayment.js';
 import { nextBriefStatus, canStartBrief, executionInput } from '../src/execution.js';
+import { cancellationConfirmation, canReview, halfYearPeriod } from '../src/lifecycle.js';
+import { diffOrders, snapshotOf } from '../src/notifications.js';
 
 const venue = { id: 'venue-one', capacity: 100 };
 const year = new Date().getFullYear() + 1;
 const start = `${year}-01-03T22:30`;
 const end = `${year}-01-04T01:00`;
+
+test('change notifications use recorded outcomes and never infer that a withdrawal was declined', () => {
+  const pending = { id: 'booking-1', venue: 'Garden Hall', status: 'confirmed', pendingChangeId: 'change-1' };
+  const seen = snapshotOf([pending]);
+  const closed = { ...pending, pendingChangeId: null };
+  const withdrawn = { ...closed, latestChange: { id: 'change-1', status: 'withdrawn' } };
+  const rejected = { ...closed, latestChange: { id: 'change-1', status: 'rejected' } };
+  assert.deepEqual(diffOrders(seen, [closed], 'client'), []);
+  assert.deepEqual(diffOrders(seen, [withdrawn], 'client'), []);
+  assert.equal(diffOrders(seen, [withdrawn], 'manager')[0].title, 'Change withdrawn');
+  assert.equal(diffOrders(seen, [rejected], 'client')[0].title, 'Change declined');
+  assert.deepEqual(diffOrders(snapshotOf([rejected]), [rejected], 'client'), []);
+  assert.equal(activeOrder({ status: 'expired' }), false);
+});
 
 test('booking preserves fractional overnight periods and explicit service quantities', () => {
   const body = bookingPayload(venue, start, end, '80', { catering: '80', equipment: '2' });
@@ -76,7 +92,7 @@ test('next reservation is chronological and excludes cancelled, completed, and e
     { id: 'pending', status: 'pending', startsAt: '2026-11-01T10:00:00Z', endsAt: '2026-11-01T12:00:00Z' },
   ];
   assert.equal(nextOrder(orders, now).id, 'pending');
-  assert.equal(cancellable({ status: 'confirmed' }), false);
+  assert.equal(cancellable({ status: 'confirmed' }), true);
   assert.equal(cancellable({ status: 'pending' }), true);
   assert.equal(activeOrder({ status: 'completed' }), false);
 });
@@ -300,4 +316,58 @@ test('demo checkout rejects incomplete details, expired dates, and cards outside
     }
   }
   assert.equal(validateDemoPayment({ ...details, cardholderName: 'a'.repeat(100) }, now).outcome, 'success');
+});
+
+test('cancellation confirmation retains reviewed revision and every financial amount', () => {
+  const quote = { revision: 3, penaltyAmount: 50.25, refundAmount: 149.75, amountDue: 0 };
+  assert.deepEqual(cancellationConfirmation(quote, '  Plans changed  '), { expectedRevision: 3, expectedPenalty: 50.25, expectedRefund: 149.75, expectedAmountDue: 0, reason: 'Plans changed' });
+  for (const invalid of [null, { ...quote, revision: 1.5 }, { ...quote, refundAmount: NaN }, { ...quote, amountDue: -1 }, { ...quote, penaltyAmount: undefined }])
+    assert.throws(() => cancellationConfirmation(invalid), /valid cancellation quote/);
+});
+
+test('paid future bookings can be cancelled while reviews require completed recorded payment', () => {
+  const future = new Date(Date.now() + 3600000).toISOString(), past = new Date(Date.now() - 3600000).toISOString();
+  assert.equal(cancellable({ status: 'confirmed', paidAmount: 100, startsAt: future }), true);
+  assert.equal(cancellable({ status: 'confirmed', startsAt: past }), false);
+  assert.equal(cancellable({ status: 'cancelled', startsAt: future }), false);
+  const order = { status: 'completed', totalAmount: 100, paidAmount: 100, paymentConfirmedAt: past };
+  assert.equal(canReview(order), true);
+  for (const changes of [{ status: 'confirmed' }, { status: 'cancelled' }, { paidAmount: 99 }, { paymentConfirmedAt: null }]) assert.equal(canReview({ ...order, ...changes }), false);
+});
+
+test('half-year reports preserve UTC leap-year boundaries and validate selectors', () => {
+  assert.deepEqual(halfYearPeriod(2024, 1), { from: '2024-01-01T00:00:00.000Z', to: '2024-07-01T00:00:00.000Z' });
+  assert.deepEqual(halfYearPeriod('2026', '2'), { from: '2026-07-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' });
+  for (const [year, half] of [[1999, 1], [2101, 1], [2026, 3], [NaN, 1], [2026.5, 2]]) assert.throws(() => halfYearPeriod(year, half));
+});
+
+test('lifecycle APIs scope cancellations schedules reviews and policy updates', async () => {
+  const previous = globalThis.fetch, calls = [];
+  try {
+    globalThis.fetch = async (url, options) => { calls.push({ url, ...options }); return new Response('{}'); };
+    const body = cancellationConfirmation({ revision: 2, penaltyAmount: 10, refundAmount: 0, amountDue: 10 });
+    await api.cancellations.quote('token', 'order/one'); await api.cancellations.cancel('token', 'order/one', body);
+    await api.cancellations.settle('token', 'order/one'); await api.execution.schedule('token', 'order/one');
+    await api.reviews.submit('token', 'order/one', { rating: 4, comment: 'Good', services: [] });
+    await api.cancellations.savePolicy('token', { expectedVersion: 2, cutoffHours: 48, earlyPercent: 0, latePercent: 20 });
+    assert.ok(calls[0].url.endsWith('/orders/order%2Fone/cancellation/quote'));
+    assert.deepEqual(JSON.parse(calls[1].body), body); assert.equal(calls[2].method, 'POST');
+    assert.ok(calls[3].url.endsWith('/orders/order%2Fone/schedule')); assert.equal(JSON.parse(calls[4].body).rating, 4);
+    assert.equal(calls[5].method, 'PUT'); assert.equal(JSON.parse(calls[5].body).expectedVersion, 2);
+  } finally { globalThis.fetch = previous; }
+});
+
+test('audit downloads use authorization headers and reject inaccessible reports', async () => {
+  const previous = globalThis.fetch; let call;
+  try {
+    globalThis.fetch = async (url, options) => { call = { url, ...options }; return new Response('Venue,Hours\nHall,4', { headers: { 'Content-Type': 'text/csv' } }); };
+    const blob = await api.reports.export('secret-token', 2026, 2);
+    assert.ok(call.url.endsWith('/admin/maintenance/export?year=2026&half=2'));
+    assert.equal(call.url.includes('secret-token'), false); assert.equal(call.headers.Authorization, 'Bearer secret-token');
+    assert.match(await blob.text(), /Hall,4/);
+    globalThis.fetch = async () => new Response('', { status: 403 });
+    await assert.rejects(api.reports.export('token', 2026, 2), error => error.status === 403);
+    globalThis.fetch = async () => new Response('<html>Sign in</html>', { headers: { 'Content-Type': 'text/html' } });
+    await assert.rejects(api.reports.export('token', 2026, 2), /unreadable report/);
+  } finally { globalThis.fetch = previous; }
 });

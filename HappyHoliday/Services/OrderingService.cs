@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using HappyHoliday.Authentication;
 using HappyHoliday.Contracts;
 using HappyHoliday.Data;
@@ -7,9 +9,10 @@ using Microsoft.Extensions.Options;
 
 namespace HappyHoliday.Services;
 
-public sealed class BookingException(int status, string message) : Exception(message)
+public sealed class BookingException(int status, string message, string? code = null) : Exception(message)
 {
     public int Status { get; } = status;
+    public string? Code { get; } = code;
 }
 
 public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOptions<OrderChangeOptions> changeOptions)
@@ -37,12 +40,12 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
             ?? throw new BookingException(404, "Premise not found.");
         if (dto.Guests < 1 || dto.Guests > premise.Capacity)
             throw new BookingException(400, "Guest count must be positive and within the premise capacity.");
-        var active = db.Orders.Where(o => o.Id != excludeOrderId && o.Status != "cancelled" && o.Status != "completed"
+        var active = db.Orders.Where(o => o.Id != excludeOrderId && BookingRules.ActiveStatuses.Contains(o.Status)
                                          && o.EventDate < end && o.EndDate > start);
         if (await active.AnyAsync(o => o.PremiseId == premise.Id, ct))
-            throw new BookingException(409, "This premise is occupied during the requested period.");
+            throw new BookingException(409, "This venue is occupied during the requested period. Try different dates or choose an alternative.", "venue-occupied");
         if (BookingRules.ExceedsPremiseLimit(await active.Where(o => o.ClientId == clientId).ToListAsync(ct), start, end))
-            throw new BookingException(409, "A client may reserve at most three premises at any one time.");
+            throw new BookingException(409, "You can reserve at most three venues at the same time. Try a different period or manage an existing booking.", "premise-limit");
         if (dto.ServiceIds is { Count: > 0 } && dto.Services is { Count: > 0 })
             throw new BookingException(400, "Supply services or serviceIds, not both.");
         var selections = dto.Services is { Count: > 0 } ? dto.Services
@@ -54,14 +57,14 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
         var services = await db.EventServices.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(ct);
         if (services.Count != ids.Count) throw new BookingException(400, "One or more selected services do not exist.");
         var reserved = await db.OrderServices.Where(s => ids.Contains(s.EventServiceId) && s.OrderId != excludeOrderId
-            && s.Order!.Status != "cancelled" && s.Order.Status != "completed" && s.Order.EventDate < end && s.Order.EndDate > start)
+            && BookingRules.ActiveStatuses.Contains(s.Order!.Status) && s.Order.EventDate < end && s.Order.EndDate > start)
             .Select(s => new { s.EventServiceId, s.Quantity, Start = s.Order!.EventDate, End = s.Order.EndDate }).ToListAsync(ct);
         foreach (var selection in selections)
         {
             var service = services.Single(s => s.Id == selection.ServiceId);
             if (service.ConcurrentCapacity is { } capacity && BookingRules.PeakUnits(reserved.Where(r => r.EventServiceId == service.Id)
                 .Select(r => (r.Start, r.End, r.Quantity)), start, end) + selection.Quantity > capacity)
-                throw new BookingException(409, $"Not enough units of {service.Name} are available during this period.");
+                throw new BookingException(409, $"Not enough units of {service.Name} are available during this period. Change the quantity or choose a different time.", "service-unavailable");
         }
         var lines = selections.Select(s =>
         {
@@ -74,15 +77,25 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
         var rental = new PriceLine(premise.Id, premise.Name, "PremiseRental", rentalRate, hours,
             BookingRules.Money(rentalRate * hours));
         var discount = BookingRules.Money(rental.Amount * premise.PromotionPercent / 100m);
-        return new OrderQuote(premise.Id, premise.Name, premise.Address, start, end, hours, rental, lines,
-            rental.Amount - discount + lines.Sum(s => s.Amount), RentalDiscount: discount, PromotionPercent: premise.PromotionPercent);
+        var terms = await db.CancellationPolicies.AsNoTracking().OrderByDescending(p => p.Version).FirstOrDefaultAsync(ct);
+        var quote = new OrderQuote(premise.Id, premise.Name, premise.Address, start, end, hours, rental, lines,
+            rental.Amount - discount + lines.Sum(s => s.Amount), RentalDiscount: discount, PromotionPercent: premise.PromotionPercent,
+            CancellationTerms: new(terms?.Version ?? 0, terms?.CutoffHours ?? changeOptions.Value.CutoffHours, terms?.EarlyPercent ?? 0, terms?.LatePercent ?? 0));
+        // Include each line and the policy so offsetting changes cannot hide behind an unchanged total.
+        var canonical = quote with { Services = lines.OrderBy(line => line.Id).ToArray() };
+        return quote with { QuoteVersion = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Quote = canonical, dto.Guests }))) };
     }
 
     public async Task<Order> CreateAsync(Guid clientId, CreateOrderDto dto, CancellationToken ct)
     {
         await using var transaction = await BookingTransaction.BeginAsync(db, ct);
         var quote = await QuoteAsync(clientId, dto, ct);
-        var active = db.Orders.Where(o => o.Status != "cancelled" && o.Status != "completed");
+        var terms = quote.CancellationTerms!;
+        if (dto.ExpectedPolicyVersion.HasValue && dto.ExpectedPolicyVersion != terms.Version)
+            throw new BookingException(409, "Cancellation terms changed. Review the updated terms before submitting.", "quote-changed");
+        if (dto.ExpectedQuoteVersion is not null && dto.ExpectedQuoteVersion != quote.QuoteVersion)
+            throw new BookingException(409, "The quote changed. Review the updated price before submitting.", "quote-changed");
+        var active = db.Orders.Where(o => BookingRules.ActiveStatuses.Contains(o.Status));
         var managers = await db.Users.Where(u => u.Role == UserRoles.Manager).OrderBy(u => u.Id).ToListAsync(ct);
         var loads = await active.Where(o => o.ManagerId != null)
             .Select(o => new { o.ManagerId, o.ClientId }).Distinct().ToListAsync(ct);
@@ -96,7 +109,11 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
         var order = new Order
         {
             ClientId = clientId, ManagerId = manager.Id, PremiseId = quote.PremiseId,
-            ChangeCutoffHours = changeOptions.Value.CutoffHours,
+            CreatedAt = BookingRules.UtcNow(clock),
+            ChangeCutoffHours = terms.CutoffHours,
+            PenaltyPolicyVersion = terms.Version,
+            EarlyCancellationPercent = terms.EarlyPercent,
+            LateCancellationPercent = terms.LatePercent,
             EventDate = quote.StartsAt, EndDate = quote.EndsAt, ExpectedGuests = dto.Guests,
             PremiseName = quote.PremiseName, PremiseAddress = quote.Address,
             RentalRate = quote.Rental.UnitPrice, RentalAmount = quote.Rental.Amount, TotalAmount = quote.TotalAmount,
@@ -113,6 +130,18 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
         return order;
     }
 
+    public static async Task<Dictionary<string, StaffProgress>> StaffProgressAsync(AppDbContext db, ICollection<string> orderIds, CancellationToken ct)
+    {
+        if (orderIds.Count == 0) return [];
+        var rows = await db.ExecutionBriefs.AsNoTracking()
+            .Where(b => orderIds.Contains(b.Plan.OrderId) && b.SupersededAt == null && b.Plan.State == "dispatched"
+                && b.Plan.OrderRevision == b.Plan.Order.Revision && b.PlanVersion == b.Plan.Version)
+            .Select(b => new { b.Plan.OrderId, b.Status }).ToListAsync(ct);
+        return rows.GroupBy(r => r.OrderId).ToDictionary(g => g.Key, g => new StaffProgress(g.Count(),
+            g.Count(r => r.Status == "sent"), g.Count(r => r.Status == "acknowledged"),
+            g.Count(r => r.Status == "in-progress"), g.Count(r => r.Status == "completed")));
+    }
+
     public static OrderResponse ToResponse(Order order)
     {
         var hours = BookingRules.Hours(order.EventDate, order.EndDate);
@@ -121,7 +150,8 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
             s.UnitPrice, s.Quantity, s.Amount)).ToList();
         var pricing = new OrderQuote(order.PremiseId, order.PremiseName, order.PremiseAddress,
             order.EventDate, order.EndDate, hours, rental, services, order.TotalAmount, LegacyEstimate: order.LegacyEstimate,
-            RentalDiscount: order.RentalDiscount, PromotionPercent: order.PromotionPercent);
+            RentalDiscount: order.RentalDiscount, PromotionPercent: order.PromotionPercent,
+            CancellationTerms: new(order.PenaltyPolicyVersion, order.ChangeCutoffHours, order.EarlyCancellationPercent, order.LateCancellationPercent));
         return new OrderResponse(order.Id, order.ClientId, order.Client?.DisplayName, order.ManagerId,
             order.PremiseId, order.PremiseName, order.PremiseAddress,
             order.EventDate.ToString("MMM dd, yyyy", System.Globalization.CultureInfo.InvariantCulture),
@@ -131,11 +161,12 @@ public sealed class OrderingService(AppDbContext db, TimeProvider clock, IOption
             order.CancelledAt is { } cancelledAt && order.CancelledByUserId is { } cancelledById
                 ? new OrderCancellation(cancelledById, order.CancelledByName ?? "Name unavailable", order.CancelledByRole ?? "", cancelledAt)
                 : null, order.Revision, order.EventDate.AddHours(-order.ChangeCutoffHours), order.PendingChangeId,
-            order.PaidAmount, order.PaymentConfirmedAt, order.ExecutionState);
+            order.PaidAmount, order.PaymentConfirmedAt, order.ExecutionState, order.CreatedAt, order.CompletedAt, order.ArchivedAt);
     }
     public static string StatusLabel(string status) => status switch
     {
         "pending" => "Pending", "awaiting-payment" => "Awaiting Payment", "confirmed" => "Confirmed",
-        "change-requested" => "Change Requested", "completed" => "Completed", "cancelled" => "Cancelled", _ => status
+        "change-requested" => "Change Requested", "completed" => "Completed", "cancelled" => "Cancelled",
+        "expired" => "Expired", _ => status
     };
 }

@@ -7,7 +7,7 @@ export function pageWindow(records, requestedPage, pageSize) {
   return { items: records.slice(start, start + pageSize), page, pages, total: records.length, start: records.length ? start + 1 : 0, end: Math.min(start + pageSize, records.length) };
 }
 
-export default function usePagination(records, resetKey = '', pageSize = 25) {
+export default function usePagination(records, resetKey = '', pageSize = 10) {
   const [requestedPage, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [resetKey]);
   const result = pageWindow(records, requestedPage, pageSize);
